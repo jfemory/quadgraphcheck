@@ -1,238 +1,88 @@
 package main
 
-//turn a binary tree into a binary number
-//left weight them to make unique
-//XOR the results for an isomorphism check
 import (
 	"fmt"
-	"log"
-	"os"
+	//	"log"
+	//	"os"
+	"errors"
 )
 
-//PrimePackage is the wrapper for all the graphs of a given prime
-type PrimePackage struct {
-	Prime     int
-	GraphList []Graph
+//primePackage is a struct that holds a prime and an array of funcGraph
+type primePackage struct {
+	prime  int
+	graphs [][]funcGraph
 }
 
-//A Graph is a collection of vertices and edges connecting those vertices
-type Graph struct {
-	C      int
-	Edges  []int
-	Blocks []Block
-}
-
-//A Block is a subgraph of a grpah, disjoint, a component size,
-//a cycle length, and a flag for whether the component contains 0.
-type Block struct {
-	Size         int
-	CycleLength  int
-	ZeroDistance int
-	BlockEdges   [][]int
+//funcGraph is a struct that holds the reduced graph information for each constant
+//for a given prime. The prime is not included as part of the constPackage, as there
+//is an array of these associated with a given prime.
+type funcGraph struct {
+	c           int
+	critCycleLength int
+	critHeight  int
+	trees       []int
 }
 
 func main() {
-
-	file, err := os.Create("output-GraphFinder0.2.txt")
-	if err != nil {
-		log.Fatal("Cannot create file", err)
+	Primes := []int{3, 5, 7, 11, 13, 17, 19, 23, 29, 32, 37, 41, 43, 47}
+	for i := 0; i < len(Primes); i++ {
+		output, _ := initialSort(Primes[i])
+		fmt.Println(Primes[i])
+		for j := 0; j < len(output.graphs); j++ {
+			fmt.Println(output.graphs[j])
+		}
 	}
-	defer file.Close()
+	//	file, err := os.Create("output-GraphFinder0.2.txt")
+	//	if err != nil {
+	//		log.Fatal("Cannot create file", err)
+	//	}
+	//	defer file.Close()
 	//End file logic
-	GenerateGraphSet(4001)
-	fmt.Fprintln(file, "test")
+	//	fmt.Fprintln(file, "test")
 }
 
-//GenerateGraphSet builds a slice of graphs from c=1 to c=p
-//for a prime p
-func GenerateGraphSet(prime int) PrimePackage {
-	graphList := InitializeGraphList(prime)
-	//Now, we need to block sort each graph. Loop to handle iteration over c,
-	//using a tmplist for each c to facilitate block sorting
-	for i := 0; i < len(graphList); i++ {
-		sortMe := &graphList[i]
-		//break this out into new funciton
-		tempList := MakeTempList(sortMe.Edges)
-		graphList[i].Blocks = BlockListBuilder(tempList)
-	}
-	var packegedOutput PrimePackage
-	packegedOutput.GraphList = graphList
-	packegedOutput.Prime = prime
-	for i := 0; i < len(packegedOutput.GraphList); i++ {
-		fmt.Println(packegedOutput.GraphList[i])
-	}
-	//fmt.Println(packegedOutput)
-	return packegedOutput
-}
-
-//BlockListBuilder builds all of the blocks of a graph of given prime p
-func BlockListBuilder(tempList [][]int) []Block {
-	var blockToAppend Block
-	var blockList []Block
-	for {
-		if len(tempList) == 0 {
-			return blockList
-		}
-
-		tempList, blockToAppend = NewBlock(tempList)
-		blockList = append(blockList, blockToAppend)
-		//	fmt.Println(tempList)
-		//	fmt.Println(blockList)
-
-	}
-}
-
-//NewBlock takes a tempList and constructs a block of a graph
-func NewBlock(tempList [][]int) ([][]int, Block) {
-	var outputBlock Block
-	var tempEdges [][]int
-	tempList, outputBlock = stepDown(tempList)
-	tempList, tempEdges = stepUp(tempList, outputBlock.BlockEdges)
-	//fmt.Println(tempEdges)
-	outputBlock.BlockEdges = tempEdges
-	outputBlock.Size = len(outputBlock.BlockEdges)
-	//outputBlock.BlockEdges = blockEdges
-	return tempList, outputBlock
-}
-
-//stepUp walks back up the list, finding vertices
-func stepUp(tempList [][]int, blockEdges [][]int) ([][]int, [][]int) {
-	listLength := len(blockEdges)
-	for i := 0; i < listLength; i++ {
-		vertex := blockEdges[i][0]
-		for k := 0; k < 2; k++ {
-			index := FindVertexIndex(vertex, tempList, 1)
-			if index == -1 {
-				break
+//initialSort takes a prime, p, and returns a primePackage with an inital sort of
+//graphs based on cycle length of the critical component and the critical height.
+func initialSort(p int) (primePackage, error) {
+	var sortedGraphs [][]funcGraph
+	var newGraph funcGraph
+	var err error
+	for i := 1; i < p; i++ {
+		newGraph, err = buildFuncGraph(p, i)
+		for j := 0; j < len(sortedGraphs); j++ {
+			if sortedGraphs[j][0].critCycleLength == newGraph.critCycleLength && sortedGraphs[j][0].critHeight == newGraph.critHeight {
+				sortedGraphs[j] = append(sortedGraphs[j], newGraph)
+				i++
 			}
-			tempList, blockEdges = moveEdgeByIndex(tempList, blockEdges, index)
-			//fmt.Println(blockEdges)
-			listLength++
 		}
+		sortedGraphs = append(sortedGraphs, []funcGraph{newGraph})
 	}
-	//fmt.Println(blockEdges)
-	return tempList, blockEdges
+	return primePackage{p, sortedGraphs}, err
 }
 
-//visualizeBlocks takes a PrimePackage and prints the
-//stepDown does teh same thing, hopefully correctly
-func stepDown(tempList [][]int) ([][]int, Block) {
-	var blockEdges [][]int
-	var outputBlock Block
-	bigLength := len(tempList)
-	//move 0th edge
-	tempList, blockEdges = moveEdgeByIndex(tempList, blockEdges, 0)
-	cycleFlag := CycleCheck(blockEdges)
-	if cycleFlag != 0 {
-		outputBlock.BlockEdges = blockEdges
-		outputBlock.CycleLength = cycleFlag
-		return tempList, outputBlock
-	}
-	for i := 0; i < bigLength-1; i++ {
-		index := findNextIndex(blockEdges[len(blockEdges)-1][1], tempList)
-		tempList, blockEdges = moveEdgeByIndex(tempList, blockEdges, index)
-		cycleFlag := CycleCheck(blockEdges)
-		if cycleFlag != 0 {
-			outputBlock.BlockEdges = blockEdges
-			outputBlock.CycleLength = cycleFlag
-			return tempList, outputBlock
+//buildFuncGraph takes a prime, p, and constant c, and returns a prime package
+//populated with cycle length
+func buildFuncGraph(p int, c int) (funcGraph, error) {
+	critCycleLength, critHeight, err := cycleCheck(p, c)
+	return funcGraph{c, critCycleLength, critHeight, nil}, err
+}
+ 
+//cycleCheck takes a prime, p, and a constant, c. It returns
+//the cycle length and critical point height, in that order.
+//An error is also returned if out of bounds.
+func cycleCheck(p int, c int) (int, int, error) {
+	cycleCheck := make([]int, 0)
+	cycleCheck = append(cycleCheck, 0)
+	var new int
+	for i := 0; i < p; i++ {
+		new = (cycleCheck[i]*cycleCheck[i] + c) % p
+		//fmt.Println(cycleCheck)
+		for j := 0; j < len(cycleCheck); j++ {
+			if new == cycleCheck[j] {
+				return len(cycleCheck) - j, j, nil
+			}
 		}
+		cycleCheck = append(cycleCheck, new)
 	}
-	outputBlock.BlockEdges = blockEdges
-	return tempList, outputBlock
-}
-
-//idea for setting zero flag that isn't working. Needs to be set in stepDown because we have
-//size of block starting at zero without stepup.
-//if blockEdges[0][0] == 0 {
-//	outputBlock.ZeroDistance = len(outputBlock.BlockEdges) - outputBlock.CycleLength
-//} else {
-//	outputBlock.ZeroDistance = -1
-//}
-
-//findNextIndex
-func findNextIndex(vertex int, tempList [][]int) int {
-	for i := 0; i < len(tempList); i++ {
-		if tempList[i][0] == vertex {
-			return i
-		}
-	}
-	return -1
-}
-
-//FindVertexIndex takes a vertex and finds the index of the vertex in the
-//0 row of the tempList
-func FindVertexIndex(vertex int, tempList [][]int, row int) int {
-	for i := 0; i < len(tempList); i++ {
-		if vertex == tempList[i][row] {
-			return i
-		}
-	}
-	return -1
-}
-
-//CycleCheck takes a vertex and a block edgeset and determines wheteher we're
-//in a cycle
-func CycleCheck(blockEdges [][]int) int {
-	vertex := blockEdges[len(blockEdges)-1][1]
-	for j := 0; j < len(blockEdges); j++ {
-		if vertex == blockEdges[j][0] {
-			cycleFlag := (len(blockEdges) - j)
-			return cycleFlag
-		}
-	}
-	return 0
-}
-
-//moveEdgeByIndex moves an edge from tmpList to blockEdges by index in tempList
-func moveEdgeByIndex(tempList [][]int, blockEdges [][]int, index int) ([][]int, [][]int) {
-	blockEdges = append(blockEdges, tempList[index])
-	tempList = RemoveEdgeByIndex(index, tempList)
-	return tempList, blockEdges
-}
-
-//RemoveEdgeByIndex does just that
-func RemoveEdgeByIndex(index int, list [][]int) [][]int {
-	list[index] = list[len(list)-1]
-	list[len(list)-1] = []int{0, 0}
-	list = list[:len(list)-1]
-	return list
-}
-
-//MakeTempList creates a tempList from an edgeset
-func MakeTempList(edgeSet []int) [][]int {
-	length := len(edgeSet)
-	tempList := make([][]int, length)
-	for i := 0; i < length; i++ {
-		tempList[i] = make([]int, 2)
-		tempList[i][0] = i
-		tempList[i][1] = edgeSet[i]
-	}
-	return tempList
-}
-
-///////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////
-////////////////////Initialization Moving Parts////////////////////
-///////////////////////////////////////////////////////////////////
-
-//InitializeGraphList makes a new graph list for a prime p
-func InitializeGraphList(prime int) []Graph {
-	graphList := make([]Graph, prime-1)
-	for i := 1; i < prime; i++ {
-		graphList[i-1] = InitializeGraph(prime, i)
-	}
-	return graphList
-}
-
-//InitializeGraph creates a new graph of prime p and constant c
-func InitializeGraph(prime int, c int) Graph {
-	var graph Graph
-	graph.C = c
-	graph.Edges = make([]int, prime)
-	for i := 0; i < prime; i++ {
-		graph.Edges[i] = (i*i + c) % prime
-	}
-
-	return graph
+	return -1, -1, errors.New("cycleCheck: Index out of bounds.")
 }
