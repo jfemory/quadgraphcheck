@@ -23,6 +23,13 @@ type funcGraph struct {
 	trees       []int
 }
 
+type tree struct {
+	left *tree
+	right *tree
+	up *tree
+
+}
+
 func main() {
 	Primes := []int{3, 5, 7, 11, 13, 17, 19, 23, 29, 32, 37, 41, 43, 47}
 	for i := 0; i < len(Primes); i++ {
