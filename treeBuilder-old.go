@@ -1,4 +1,4 @@
-package mail 
+package mail
 
 //turn a binary tree into a binary number
 //left weight them to make unique
