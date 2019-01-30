@@ -74,17 +74,17 @@ func main() {
 
 func generatePreperiodStats(data chan []string, primeChan chan int) {
 	data <- []string{"p", "h_avg", "h_max", "n_avg", "n_max", "t_avg", "t_max", "total_singleton"}
-	var output outputData
+	//var output outputData
 	for {
 		prime := <-primeChan
-		pack, err := initialSort(prime)
+		go initialSort(prime, data)
+		//pack := <-packChan
 		//fmt.Println(pack)
-		checkError("Problem sorting prime.", err)
-		output.p = prime
-		getH(&pack, &output)
-		getN(&pack, &output)
-		getT(&pack, &output)
-		data <- []string{strconv.Itoa(output.p), strconv.FormatFloat(output.h_avg, 'f', -1, 64), strconv.Itoa(output.h_max), strconv.FormatFloat(output.n_avg, 'f', -1, 64), strconv.Itoa(output.n_max), strconv.FormatFloat(output.t_avg, 'f', -1, 64), strconv.Itoa(output.t_max), strconv.Itoa(output.singletons)}
+		//output.p = prime
+		//getH(&pack, &output)
+		//getN(&pack, &output)
+		//getT(&pack, &output)
+		//data <- []string{strconv.Itoa(output.p), strconv.FormatFloat(output.h_avg, 'f', -1, 64), strconv.Itoa(output.h_max), strconv.FormatFloat(output.n_avg, 'f', -1, 64), strconv.Itoa(output.n_max), strconv.FormatFloat(output.t_avg, 'f', -1, 64), strconv.Itoa(output.t_max), strconv.Itoa(output.singletons)}
 	}
 }
 
@@ -129,23 +129,23 @@ func getN(pack *primePackage, output *outputData) error {
 }
 
 //T is for tuple, size of equivalence classes
-func getT(pack *primePackage, output *outputData) error {
+func getT(graphs [][]funcGraph, output *outputData) error {
 	var t_max int
 	var t_sum int
 	var singletonCount int
 	t_max = 1
 	t_sum = 1
 	singletonCount = 1
-	for i := 0; i < len(pack.graphs); i++ {
-		if t_max < len(pack.graphs[i]) {
-			t_max = len(pack.graphs[i])
+	for i := 0; i < len(graphs); i++ {
+		if t_max < len(graphs[i]) {
+			t_max = len(graphs[i])
 		}
-		if len(pack.graphs[i]) == 1 {
+		if len(graphs[i]) == 1 {
 			singletonCount++
 		}
-		t_sum = t_sum + (len(pack.graphs[i]))
+		t_sum = t_sum + (len(graphs[i]))
 	}
-	output.t_avg = float64(t_sum) / float64(len(pack.graphs))
+	output.t_avg = float64(t_sum) / float64(len(graphs))
 	output.t_max = t_max
 	output.singletons = singletonCount
 	return nil
@@ -153,28 +153,50 @@ func getT(pack *primePackage, output *outputData) error {
 
 //initialSort takes a prime, p, and returns a primePackage with an inital sort of
 //graphs based on cycle length of the critical component and the critical height.
-func initialSort(p int) (primePackage, error) {
+func initialSort(p int, data chan []string) {
 	var sortedGraphs [][]funcGraph
-	var newGraph funcGraph
-	var err error
+	var output outputData
+	var h_max int
+	var h_sum int
+	var n_max int
+	var n_sum int
+	graphChan := make(chan *funcGraph)
 	for i := 1; i < p; i++ {
-		newGraph, err = buildFuncGraph(p, i)
+		go buildFuncGraph(p, i, graphChan)
+		newGraph := <-graphChan
+		if h_max < newGraph.critHeight {
+			h_max = newGraph.critHeight
+		}
+		h_sum = h_sum + newGraph.critHeight
+		if n_max < newGraph.critCycleLength {
+			n_max = newGraph.critCycleLength
+		}
+		n_sum = n_sum + newGraph.critCycleLength
 		for j := 0; j < len(sortedGraphs); j++ {
 			if sortedGraphs[j][0].critCycleLength == newGraph.critCycleLength && sortedGraphs[j][0].critHeight == newGraph.critHeight {
-				sortedGraphs[j] = append(sortedGraphs[j], newGraph)
+				sortedGraphs[j] = append(sortedGraphs[j], *newGraph)
 				i++
 			}
 		}
-		sortedGraphs = append(sortedGraphs, []funcGraph{newGraph})
+		sortedGraphs = append(sortedGraphs, []funcGraph{*newGraph})
+		go getT(sortedGraphs, &output)
+		output.p = p
+		output.h_avg = float64(h_sum)/float64(p)
+		output.h_max = h_max
+		output.n_avg = float64(n_sum)/float64(p)
+		output.n_max = n_max
 	}
-	return primePackage{int(p), sortedGraphs}, err
+	output.p = p
+	data <- []string{strconv.Itoa(output.p), strconv.FormatFloat(output.h_avg, 'f', -1, 64), strconv.Itoa(output.h_max), strconv.FormatFloat(output.n_avg, 'f', -1, 64), strconv.Itoa(output.n_max), strconv.FormatFloat(output.t_avg, 'f', -1, 64), strconv.Itoa(output.t_max), strconv.Itoa(output.singletons)}
+	//packChan <- primePackage{int(p), sortedGraphs} // change to putting final data on data chan
 }
 
 //buildFuncGraph takes a prime, p, and constant constant, and returns a prime package
 //populated with cycle length
-func buildFuncGraph(p int, constant int) (funcGraph, error) {
+func buildFuncGraph(p int, constant int, graphChan chan *funcGraph) {
 	critCycleLength, critHeight, err := easyCycleCheck(p, constant)
-	return funcGraph{constant, critCycleLength, critHeight, nil}, err
+	checkError("error bulding graph", err)
+	graphChan <- &funcGraph{constant, critCycleLength, critHeight, nil}
 }
 
 //easyCycleCheck takes a prime, p, and a constant, constant. It returns
