@@ -76,15 +76,7 @@ func generatePreperiodStats(data chan []string, primeChan chan int) {
 	data <- []string{"p", "h_avg", "h_max", "n_avg", "n_max", "t_avg", "t_max", "total_singleton"}
 	//var output outputData
 	for {
-		prime := <-primeChan
-		go initialSort(prime, data)
-		//pack := <-packChan
-		//fmt.Println(pack)
-		//output.p = prime
-		//getH(&pack, &output)
-		//getN(&pack, &output)
-		//getT(&pack, &output)
-		//data <- []string{strconv.Itoa(output.p), strconv.FormatFloat(output.h_avg, 'f', -1, 64), strconv.Itoa(output.h_max), strconv.FormatFloat(output.n_avg, 'f', -1, 64), strconv.Itoa(output.n_max), strconv.FormatFloat(output.t_avg, 'f', -1, 64), strconv.Itoa(output.t_max), strconv.Itoa(output.singletons)}
+		go initialSort(<-primeChan, data)
 	}
 }
 
@@ -96,40 +88,39 @@ func writeIt(data chan []string, writer *csv.Writer) {
 	}
 }
 
-func getH(pack *primePackage, output *outputData) error {
-	var h_max int
-	var h_sum int
-	h_max = 0
-	h_sum = 0
-	for i := 0; i < len(pack.graphs); i++ {
-		if h_max < pack.graphs[i][0].critHeight {
-			h_max = pack.graphs[i][0].critHeight
-		}
-		h_sum = h_sum + (len(pack.graphs[i]) * pack.graphs[i][0].critHeight)
-	}
-	output.h_avg = float64(h_sum) / float64(pack.prime)
-	output.h_max = h_max
-	return nil
-}
-
-func getN(pack *primePackage, output *outputData) error {
-	var n_max int
-	var n_sum int
-	n_max = 0
-	n_sum = 0
-	for i := 0; i < len(pack.graphs); i++ {
-		if n_max < pack.graphs[i][0].critCycleLength {
-			n_max = pack.graphs[i][0].critCycleLength
-		}
-		n_sum = n_sum + (len(pack.graphs[i]) * pack.graphs[i][0].critCycleLength)
-	}
-	output.n_avg = float64(n_sum) / float64(pack.prime)
-	output.n_max = n_max
-	return nil
-}
+//func getH(pack *primePackage, output *outputData) error {
+//	var h_max int
+//	var h_sum int
+//	h_max = 0
+//	h_sum = 0
+//	for i := 0; i < len(pack.graphs); i++ {
+//		if h_max < pack.graphs[i][0].critHeight {
+//			h_max = pack.graphs[i][0].critHeight
+//		}
+//		h_sum = h_sum + (len(pack.graphs[i]) * pack.graphs[i][0].critHeight)
+//	}
+//	output.h_avg = float64(h_sum) / float64(pack.prime)
+//	output.h_max = h_max
+//	return nil
+//}
+//func getN(pack *primePackage, output *outputData) error {
+//	var n_max int
+//	var n_sum int
+//	n_max = 0
+//	n_sum = 0
+//	for i := 0; i < len(pack.graphs); i++ {
+//		if n_max < pack.graphs[i][0].critCycleLength {
+//			n_max = pack.graphs[i][0].critCycleLength
+//		}
+//		n_sum = n_sum + (len(pack.graphs[i]) * pack.graphs[i][0].critCycleLength)
+//	}
+//	output.n_avg = float64(n_sum) / float64(pack.prime)
+//	output.n_max = n_max
+//	return nil
+//}
 
 //T is for tuple, size of equivalence classes
-func getT(graphs [][]funcGraph, output *outputData) error {
+func getT(graphs [][]funcGraph, output *outputData) {
 	var t_max int
 	var t_sum int
 	var singletonCount int
@@ -148,7 +139,6 @@ func getT(graphs [][]funcGraph, output *outputData) error {
 	output.t_avg = float64(t_sum) / float64(len(graphs))
 	output.t_max = t_max
 	output.singletons = singletonCount
-	return nil
 }
 
 //initialSort takes a prime, p, and returns a primePackage with an inital sort of
@@ -156,13 +146,12 @@ func getT(graphs [][]funcGraph, output *outputData) error {
 func initialSort(p int, data chan []string) {
 	var sortedGraphs [][]funcGraph
 	var output outputData
-	var h_max int
-	var h_sum int
-	var n_max int
-	var n_sum int
-	graphChan := make(chan *funcGraph)
+	h_max, h_sum, n_max, n_sum := 0, 0, 0, 0
+	graphChan := make(chan funcGraph)
 	for i := 1; i < p; i++ {
 		go buildFuncGraph(p, i, graphChan)
+	}
+	for i := 1; i < p; i++ {
 		newGraph := <-graphChan
 		if h_max < newGraph.critHeight {
 			h_max = newGraph.critHeight
@@ -174,29 +163,31 @@ func initialSort(p int, data chan []string) {
 		n_sum = n_sum + newGraph.critCycleLength
 		for j := 0; j < len(sortedGraphs); j++ {
 			if sortedGraphs[j][0].critCycleLength == newGraph.critCycleLength && sortedGraphs[j][0].critHeight == newGraph.critHeight {
-				sortedGraphs[j] = append(sortedGraphs[j], *newGraph)
+				sortedGraphs[j] = append(sortedGraphs[j], newGraph)
 				i++
 			}
 		}
-		sortedGraphs = append(sortedGraphs, []funcGraph{*newGraph})
+		sortedGraphs = append(sortedGraphs, []funcGraph{newGraph})
+	}
 		go getT(sortedGraphs, &output)
+		fmt.Println(sortedGraphs)
 		output.p = p
 		output.h_avg = float64(h_sum)/float64(p)
 		output.h_max = h_max
 		output.n_avg = float64(n_sum)/float64(p)
 		output.n_max = n_max
-	}
+
 	output.p = p
 	data <- []string{strconv.Itoa(output.p), strconv.FormatFloat(output.h_avg, 'f', -1, 64), strconv.Itoa(output.h_max), strconv.FormatFloat(output.n_avg, 'f', -1, 64), strconv.Itoa(output.n_max), strconv.FormatFloat(output.t_avg, 'f', -1, 64), strconv.Itoa(output.t_max), strconv.Itoa(output.singletons)}
 	//packChan <- primePackage{int(p), sortedGraphs} // change to putting final data on data chan
 }
 
-//buildFuncGraph takes a prime, p, and constant constant, and returns a prime package
-//populated with cycle length
-func buildFuncGraph(p int, constant int, graphChan chan *funcGraph) {
+//buildFuncGraph takes a prime, p, and constant constant, and puts a functional
+//graph on the graphChan channel
+func buildFuncGraph(p int, constant int, graphChan chan funcGraph) {
 	critCycleLength, critHeight, err := easyCycleCheck(p, constant)
 	checkError("error bulding graph", err)
-	graphChan <- &funcGraph{constant, critCycleLength, critHeight, nil}
+	graphChan <- funcGraph{constant, critCycleLength, critHeight, nil}
 }
 
 //easyCycleCheck takes a prime, p, and a constant, constant. It returns
