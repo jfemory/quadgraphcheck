@@ -21,7 +21,7 @@ type preP struct {
 }
 
 func main() {
-	p := 17
+	p := 11
 	portrait := make(chan preP)
 	for i := 1; i < p; i++ {
 		go preperiod(p, i, portrait)
