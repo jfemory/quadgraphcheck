@@ -2,8 +2,6 @@ package main
 
 import (
 	"bufio"
-	"encoding/csv"
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -11,189 +9,31 @@ import (
 	"strings"
 )
 
-//primePackage is a struct that holds a prime and an array of funcGraph
-type primePackage struct {
-	prime  int
-	graphs [][]funcGraph
-}
-
 //funcGraph is a struct that holds the reduced graph information for each constant
 //for a given prime. The prime is not included as part of the constPackage, as there
 //is an array of these associated with a given prime.
-type funcGraph struct {
+type preP struct {
 	constant        int
 	critCycleLength int
 	critHeight      int
-	components      []block
+	//components      []block
 	//tempList	[][]int //edgeset is temporary and decrements as components are built.
 }
 
-type block struct {
-	cycleLength int
-	trees       []int
-}
-
-type outputData struct {
-	p          int
-	h_avg      float64
-	h_max      int
-	n_avg      float64
-	n_max      int
-	t_avg      float64
-	t_max      int
-	singletons int
-}
-
 func main() {
-	//new file logic
-	file, err := os.Create("preperiodicPortraitStats.csv")
-	checkError("Cannot Create File", err)
-	defer file.Close()
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
-
-	data := make(chan []string)
-	primeChan := make(chan int)
-	listEmpty := make(chan bool)
-
-	go parsePrimeList(primeChan, listEmpty)
-	go generatePreperiodStats(data, primeChan)
-	go writeIt(data, writer) //write strings to file
-
-	//Primes := []int{3, 5, 7}
-	//Primes := []int{17}
-	//for i := 0; i < len(Primes); i++ {
-	//	pack, err := initialSort(Primes[i])
-	//	checkError("Prime Sort Failed.", err)
-	//	fmt.Println(pack)
-	//}
-	fmt.Println("Preparing Output")
-	<-listEmpty
-	fmt.Println("Done")
-}
-
-func generatePreperiodStats(data chan []string, primeChan chan int) {
-	data <- []string{"p", "h_avg", "h_max", "n_avg", "n_max", "t_avg", "t_max", "total_singleton"}
-	//var output outputData
-	for {
-		go initialSort(<-primeChan, data)
-	}
-}
-
-func writeIt(data chan []string, writer *csv.Writer) {
-	for {
-		output := <-data
-		err := writer.Write(output)
-		checkError("Write to file failed.", err)
-	}
-}
-
-//func getH(pack *primePackage, output *outputData) error {
-//	var h_max int
-//	var h_sum int
-//	h_max = 0
-//	h_sum = 0
-//	for i := 0; i < len(pack.graphs); i++ {
-//		if h_max < pack.graphs[i][0].critHeight {
-//			h_max = pack.graphs[i][0].critHeight
-//		}
-//		h_sum = h_sum + (len(pack.graphs[i]) * pack.graphs[i][0].critHeight)
-//	}
-//	output.h_avg = float64(h_sum) / float64(pack.prime)
-//	output.h_max = h_max
-//	return nil
-//}
-//func getN(pack *primePackage, output *outputData) error {
-//	var n_max int
-//	var n_sum int
-//	n_max = 0
-//	n_sum = 0
-//	for i := 0; i < len(pack.graphs); i++ {
-//		if n_max < pack.graphs[i][0].critCycleLength {
-//			n_max = pack.graphs[i][0].critCycleLength
-//		}
-//		n_sum = n_sum + (len(pack.graphs[i]) * pack.graphs[i][0].critCycleLength)
-//	}
-//	output.n_avg = float64(n_sum) / float64(pack.prime)
-//	output.n_max = n_max
-//	return nil
-//}
-
-//T is for tuple, size of equivalence classes
-func getT(graphs [][]funcGraph, output *outputData) {
-	var t_max int
-	var t_sum int
-	var singletonCount int
-	t_max = 1
-	t_sum = 1
-	singletonCount = 1
-	for i := 0; i < len(graphs); i++ {
-		if t_max < len(graphs[i]) {
-			t_max = len(graphs[i])
-		}
-		if len(graphs[i]) == 1 {
-			singletonCount++
-		}
-		t_sum = t_sum + (len(graphs[i]))
-	}
-	output.t_avg = float64(t_sum) / float64(len(graphs))
-	output.t_max = t_max
-	output.singletons = singletonCount
-}
-
-//initialSort takes a prime, p, and returns a primePackage with an inital sort of
-//graphs based on cycle length of the critical component and the critical height.
-func initialSort(p int, data chan []string) {
-	var sortedGraphs [][]funcGraph
-	var output outputData
-	h_max, h_sum, n_max, n_sum := 0, 0, 0, 0
-	graphChan := make(chan funcGraph)
+	p := 11
+	portrait := make(chan preP)
 	for i := 1; i < p; i++ {
-		go buildFuncGraph(p, i, graphChan)
+		go preperiod(p, i, portrait)
 	}
 	for i := 1; i < p; i++ {
-		newGraph := <-graphChan
-		if h_max < newGraph.critHeight {
-			h_max = newGraph.critHeight
-		}
-		h_sum = h_sum + newGraph.critHeight
-		if n_max < newGraph.critCycleLength {
-			n_max = newGraph.critCycleLength
-		}
-		n_sum = n_sum + newGraph.critCycleLength
-		for j := 0; j < len(sortedGraphs); j++ {
-			if sortedGraphs[j][0].critCycleLength == newGraph.critCycleLength && sortedGraphs[j][0].critHeight == newGraph.critHeight {
-				sortedGraphs[j] = append(sortedGraphs[j], newGraph)
-				i++
-			}
-		}
-		sortedGraphs = append(sortedGraphs, []funcGraph{newGraph})
+		fmt.Println(<-portrait)
 	}
-		go getT(sortedGraphs, &output)
-		fmt.Println(sortedGraphs)
-		output.p = p
-		output.h_avg = float64(h_sum)/float64(p)
-		output.h_max = h_max
-		output.n_avg = float64(n_sum)/float64(p)
-		output.n_max = n_max
-
-	output.p = p
-	data <- []string{strconv.Itoa(output.p), strconv.FormatFloat(output.h_avg, 'f', -1, 64), strconv.Itoa(output.h_max), strconv.FormatFloat(output.n_avg, 'f', -1, 64), strconv.Itoa(output.n_max), strconv.FormatFloat(output.t_avg, 'f', -1, 64), strconv.Itoa(output.t_max), strconv.Itoa(output.singletons)}
-	//packChan <- primePackage{int(p), sortedGraphs} // change to putting final data on data chan
 }
 
-//buildFuncGraph takes a prime, p, and constant constant, and puts a functional
-//graph on the graphChan channel
-func buildFuncGraph(p int, constant int, graphChan chan funcGraph) {
-	critCycleLength, critHeight, err := easyCycleCheck(p, constant)
-	checkError("error bulding graph", err)
-	graphChan <- funcGraph{constant, critCycleLength, critHeight, nil}
-}
-
-//easyCycleCheck takes a prime, p, and a constant, constant. It returns
-//the cycle length and critical point height, in that order.
-//An error is also returned if out of bounds.
-func easyCycleCheck(p int, constant int) (int, int, error) {
+//preperiod takes a prime p and a constant c, putting a preP
+//onto the portrait chan
+func preperiod(p int, constant int, portrait chan preP) {
 	cycleCheck := make([]int, 0)
 	cycleCheck = append(cycleCheck, 0)
 	var new int
@@ -202,18 +42,12 @@ func easyCycleCheck(p int, constant int) (int, int, error) {
 		//fmt.Println(cycleCheck)
 		for j := 0; j < len(cycleCheck); j++ {
 			if new == cycleCheck[j] {
-				return len(cycleCheck) - j, j, nil
+				portrait <- preP{constant, (len(cycleCheck) - j), j}
 			}
 		}
 		cycleCheck = append(cycleCheck, new)
 	}
-	return -1, -1, errors.New("easyCycleCheck: Index out of bounds.")
-}
 
-func checkError(message string, err error) {
-	if err != nil {
-		log.Fatal(message, err)
-	}
 }
 
 //parsePrimeList takes a list of primes and pushes them one by one onto primeChan
@@ -235,4 +69,10 @@ func parsePrimeList(primeChan chan int, listEmpty chan bool) {
 	}
 	listEmpty <- true
 	//	checkError("bufio problem, figure it out...", err)
+}
+
+func checkError(message string, err error) {
+	if err != nil {
+		log.Fatal(message, err)
+	}
 }
