@@ -26,7 +26,7 @@ func main() {
 	portrait := make(chan preP)
 	var wg sync.WaitGroup
 	for i := 1; i < p; i++ {
-		preperiod(p, i, portrait, &wg)
+		go preperiod(p, i, portrait, &wg)
 	}
 	for i := 1; i < p; i++ {
 		fmt.Println(<-portrait)
@@ -35,27 +35,26 @@ func main() {
 	close(portrait)
 }
 
+//
+
 //preperiod takes a prime p and a constant c, putting a preP
-//onto the portrait chan
+//onto the portrait chan. Run as a go routine.
 func preperiod(p int, c int, portrait chan<- preP, wg *sync.WaitGroup) {
 	wg.Add(1)
-	go func() {
 	cycleCheck := make([]int, 0)
 	cycleCheck = append(cycleCheck, 0)
 	var new int
 	for i := 0; i < p; i++ {
 		new = (cycleCheck[i]*cycleCheck[i] + c) % p
-		//fmt.Println(cycleCheck)
 		for j := 0; j < len(cycleCheck); j++ {
 			if new == cycleCheck[j] {
 				portrait <- preP{c, (len(cycleCheck) - j), j}
+				wg.Done()
 				return
 			}
 		}
 		cycleCheck = append(cycleCheck, new)
 	}
-}()
-wg.Done()
 }
 
 //parsePrimeList takes a list of primes and pushes them one by one onto primeChan
