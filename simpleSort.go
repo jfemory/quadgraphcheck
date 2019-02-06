@@ -23,26 +23,25 @@ type preP struct {
 
 func main() {
 	p := 17
+	fmt.Print(buildPrimePortrait(p))
+}
+
+//sortIt takes a prime p, builds an array of preperiodic portraits from it,
+//buildPrimePortrait builds an array of preperiodic portraits from channel of preperiodic portraits, as they come in. It returns this array.
+func buildPrimePortrait(p int) []preP {
+	primePortrait := make([]preP, 0)
 	portrait := make(chan preP)
 	var wg sync.WaitGroup
 	for i := 1; i < p; i++ {
 		go preperiod(p, i, portrait, &wg)
 	}
 	for i := 1; i < p; i++ {
-		fmt.Println(<-portrait)
+		primePortrait = append(primePortrait, <-portrait)
 	}
 	wg.Wait()
 	close(portrait)
-	// Cross check
-	fmt.Println()
-	portrait = make(chan preP)
-	for i := 1; i < p; i++ {
-		go preperiod(p, i, portrait, &wg)
-		fmt.Println(<-portrait)
-	}
-	close(portrait)
+	return primePortrait
 }
-//
 
 //preperiod takes a prime p and a constant c, putting a preP
 //onto the portrait chan. Run as a go routine.
