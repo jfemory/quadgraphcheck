@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"sync"
 	"strings"
 )
 
@@ -23,17 +24,22 @@ type preP struct {
 func main() {
 	p := 11
 	portrait := make(chan preP)
+	var wg sync.WaitGroup
 	for i := 1; i < p; i++ {
-		go preperiod(p, i, portrait)
+		preperiod(p, i, portrait, &wg)
 	}
 	for i := 1; i < p; i++ {
 		fmt.Println(<-portrait)
 	}
+	wg.Wait()
+	close(portrait)
 }
 
 //preperiod takes a prime p and a constant c, putting a preP
 //onto the portrait chan
-func preperiod(p int, constant int, portrait chan preP) {
+func preperiod(p int, constant int, portrait chan<- preP, wg *sync.WaitGroup) {
+	wg.Add(1)
+	go func() {
 	cycleCheck := make([]int, 0)
 	cycleCheck = append(cycleCheck, 0)
 	var new int
@@ -47,11 +53,12 @@ func preperiod(p int, constant int, portrait chan preP) {
 		}
 		cycleCheck = append(cycleCheck, new)
 	}
-
+}()
+wg.Done()
 }
 
 //parsePrimeList takes a list of primes and pushes them one by one onto primeChan
-func parsePrimeList(primeChan chan int, listEmpty chan bool) {
+func parsePrimeList(primeChan chan int) {
 	//open file logic
 	openFile, err := os.Open("list.prime")
 	checkError("Failed to open prime list file.", err)
@@ -67,7 +74,7 @@ func parsePrimeList(primeChan chan int, listEmpty chan bool) {
 			primeChan <- prime
 		}
 	}
-	listEmpty <- true
+	close(primeChan)
 	//	checkError("bufio problem, figure it out...", err)
 }
 
