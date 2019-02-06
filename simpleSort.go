@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/csv"
 	//	"fmt"
+	"io"
 	"log"
 	"os"
 	"strconv"
@@ -45,7 +46,7 @@ func main() {
 	//listEmpty := make(chan bool)
 	out := make(chan []string)
 
-	go parsePrimeList(primeChan)
+	go parsePrimeListCSV(primeChan)
 	//go writeIt(out, writer)
 	//go writeIt(out, writer)
 
@@ -163,6 +164,28 @@ func preperiod(p int, c int, portrait chan<- preP, wg *sync.WaitGroup) {
 		}
 		cycleCheck = append(cycleCheck, new)
 	}
+}
+
+//parsePrimeList takes a CSV of primes and pushes them one by one onto primeChan
+func parsePrimeListCSV(primeChan chan int) {
+	defer close(primeChan)
+	//open file logic
+	openFile, err := os.Open("list.prime")
+	checkError("Failed to open prime list file.", err)
+	defer openFile.Close()
+
+	reader := csv.NewReader(bufio.NewReader(openFile))
+	for {
+		stringSlice, error := reader.Read()
+		if error == io.EOF {
+			break
+		}
+		for i := 0; i < len(stringSlice); i++ {
+			prime, _ := strconv.Atoi(stringSlice[i])
+			primeChan <- prime
+		}
+	}
+	//	checkError("bufio problem, figure it out...", err)
 }
 
 //parsePrimeList takes a list of primes and pushes them one by one onto primeChan
