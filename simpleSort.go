@@ -22,7 +22,7 @@ type preP struct {
 }
 
 func main() {
-	p := 11
+	p := 17
 	portrait := make(chan preP)
 	var wg sync.WaitGroup
 	for i := 1; i < p; i++ {
@@ -33,8 +33,15 @@ func main() {
 	}
 	wg.Wait()
 	close(portrait)
+	// Cross check
+	fmt.Println()
+	portrait = make(chan preP)
+	for i := 1; i < p; i++ {
+		go preperiod(p, i, portrait, &wg)
+		fmt.Println(<-portrait)
+	}
+	close(portrait)
 }
-
 //
 
 //preperiod takes a prime p and a constant c, putting a preP
