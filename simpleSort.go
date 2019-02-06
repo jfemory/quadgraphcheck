@@ -3,7 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/csv"
-	//	"fmt"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -54,9 +54,10 @@ func main() {
 
 	//p := 11
 	for {
+		portChan := make(chan []preP)
 		p := <-primeChan
-		port := buildPrimePortrait(p)
-		go scorePrimePortrait(p, port, out)
+		go buildPrimePortrait(p, portChan)
+		go scorePrimePortrait(p, portChan, out)
 		writer.Write(<-out)
 	}
 }
@@ -65,7 +66,8 @@ func main() {
 //func sortPrimePortrait(p prime)
 
 //scorePrimePortrait takes a prime portrait slice, port, and puts outputData onto the outData channel
-func scorePrimePortrait(p int, port []preP, outdata chan<- []string) {
+func scorePrimePortrait(p int, portChan <-chan []preP, outdata chan<- []string) {
+	port := <-portChan
 	var out outputData
 	h_max := 0
 	h_sum := 0
@@ -112,6 +114,7 @@ func scorePrimePortrait(p int, port []preP, outdata chan<- []string) {
 	out.t_max = t_max
 	out.singletonRatio = float64(singleton_count) / float64(p)
 	out.nonsingletonClasses = t_count
+	fmt.Println(out.p)
 	outdata <- []string{strconv.Itoa(out.p), strconv.FormatFloat(out.h_avg, 'f', -1, 64), strconv.Itoa(out.h_max), strconv.FormatFloat(out.n_avg, 'f', -1, 64), strconv.Itoa(out.n_max), strconv.FormatFloat(out.t_avg, 'f', -1, 64), strconv.Itoa(out.t_max), strconv.FormatFloat(out.singletonRatio, 'f', -1, 64), strconv.Itoa(out.nonsingletonClasses)}
 }
 
@@ -120,7 +123,7 @@ func scorePrimePortrait(p int, port []preP, outdata chan<- []string) {
 //}
 
 //buildPrimePortrait builds an array of preperiodic portraits from channel of preperiodic portraits, as they come in. It returns this array.
-func buildPrimePortrait(p int) []preP {
+func buildPrimePortrait(p int, portChan chan<- []preP) {
 	primePortrait := make([]preP, 0)
 	portrait := make(chan preP)
 	var wg sync.WaitGroup
@@ -143,7 +146,7 @@ func buildPrimePortrait(p int) []preP {
 	}
 	wg.Wait()
 	close(portrait)
-	return primePortrait
+	portChan <- primePortrait
 }
 
 //preperiod takes a prime p and a constant c, putting a preP
