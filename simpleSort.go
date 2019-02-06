@@ -37,18 +37,19 @@ func main() {
 
 //preperiod takes a prime p and a constant c, putting a preP
 //onto the portrait chan
-func preperiod(p int, constant int, portrait chan<- preP, wg *sync.WaitGroup) {
+func preperiod(p int, c int, portrait chan<- preP, wg *sync.WaitGroup) {
 	wg.Add(1)
 	go func() {
 	cycleCheck := make([]int, 0)
 	cycleCheck = append(cycleCheck, 0)
 	var new int
 	for i := 0; i < p; i++ {
-		new = (cycleCheck[i]*cycleCheck[i] + constant) % p
+		new = (cycleCheck[i]*cycleCheck[i] + c) % p
 		//fmt.Println(cycleCheck)
 		for j := 0; j < len(cycleCheck); j++ {
 			if new == cycleCheck[j] {
-				portrait <- preP{constant, (len(cycleCheck) - j), j}
+				portrait <- preP{c, (len(cycleCheck) - j), j}
+				return
 			}
 		}
 		cycleCheck = append(cycleCheck, new)
