@@ -52,18 +52,21 @@ func main() {
 
 	writer.Write([]string{"p", "h_avg", "h_max", "n_avg", "n_max", "t_avg", "t_max", "singleton_ratio", "nonsingletonClasses"})
 
+	go func() {
+		for {
+			writer.Write(<-out)
+		}
+	}()
 	//p := 11
+	var waitToScore sync.WaitGroup
 	for {
 		portChan := make(chan []preP)
 		p := <-primeChan
-		go buildPrimePortrait(p, portChan)
+		go buildPrimePortrait(p, portChan, &waitToScore)
 		go scorePrimePortrait(p, portChan, out)
-		writer.Write(<-out)
+		waitToScore.Wait()
 	}
 }
-
-//sortPrimePortrait takes a prime p, calls buildPrimePortrait to construct an array of
-//func sortPrimePortrait(p prime)
 
 //scorePrimePortrait takes a prime portrait slice, port, and puts outputData onto the outData channel
 func scorePrimePortrait(p int, portChan <-chan []preP, outdata chan<- []string) {
@@ -80,6 +83,7 @@ func scorePrimePortrait(p int, portChan <-chan []preP, outdata chan<- []string) 
 	out.p = p
 
 	for i := 0; i < len(port); i++ {
+		//fmt.Println("a")
 		//set coefficient for sums
 		coeff := len(port[i].constant)
 		//increment x_sum and x_count
@@ -118,18 +122,16 @@ func scorePrimePortrait(p int, portChan <-chan []preP, outdata chan<- []string) 
 	outdata <- []string{strconv.Itoa(out.p), strconv.FormatFloat(out.h_avg, 'f', -1, 64), strconv.Itoa(out.h_max), strconv.FormatFloat(out.n_avg, 'f', -1, 64), strconv.Itoa(out.n_max), strconv.FormatFloat(out.t_avg, 'f', -1, 64), strconv.Itoa(out.t_max), strconv.FormatFloat(out.singletonRatio, 'f', -1, 64), strconv.Itoa(out.nonsingletonClasses)}
 }
 
-//outputParser converts raw type into a string array
-//func outputParser (outdata <- []string{strconv.Itoa(out.p), strconv.FormatFloat(out.h_avg, 'f', -1, 64), strconv.Itoa(out.h_max), strconv.FormatFloat(out.n_avg, 'f', -1, 64), strconv.Itoa(out.n_max), strconv.FormatFloat(out.t_avg, 'f', -1, 64), strconv.Itoa(out.t_max), strconv.FormatFloat(out.singletonRatio, 'f', -1, 64), strconf.Itoa(out.nonsingletonClasses)}
-//}
-
 //buildPrimePortrait builds an array of preperiodic portraits from channel of preperiodic portraits, as they come in. It returns this array.
-func buildPrimePortrait(p int, portChan chan<- []preP) {
+func buildPrimePortrait(p int, portChan chan<- []preP, waitToScore *sync.WaitGroup) {
+	waitToScore.Add(1)
 	primePortrait := make([]preP, 0)
 	portrait := make(chan preP)
 	var wg sync.WaitGroup
 	for i := 1; i < p; i++ {
 		go preperiod(p, i, portrait, &wg)
 	}
+	//
 	for i := 1; i < p; i++ {
 		flag := false
 		new := <-portrait
@@ -137,6 +139,7 @@ func buildPrimePortrait(p int, portChan chan<- []preP) {
 			if primePortrait[j].critCycleLength == new.critCycleLength && primePortrait[j].critHeight == new.critHeight {
 				flag = true
 				primePortrait[j].constant = append(primePortrait[j].constant, new.constant[0])
+				break
 			}
 
 		}
@@ -145,6 +148,7 @@ func buildPrimePortrait(p int, portChan chan<- []preP) {
 		}
 	}
 	wg.Wait()
+	waitToScore.Done()
 	close(portrait)
 	portChan <- primePortrait
 }
@@ -153,6 +157,7 @@ func buildPrimePortrait(p int, portChan chan<- []preP) {
 //onto the portrait chan. Run as a go routine.
 func preperiod(p int, c int, portrait chan<- preP, wg *sync.WaitGroup) {
 	wg.Add(1)
+	//fmt.Println(c)
 	cycleCheck := make([]int, 0)
 	cycleCheck = append(cycleCheck, 0)
 	var new int
