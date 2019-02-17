@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 //funcGraph is a struct that holds the reduced graph information for each constant
@@ -42,34 +43,31 @@ func main() {
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
 
+	writer.Write([]string{"p", "h_avg", "h_max", "n_avg", "n_max", "t_avg", "t_max", "singleton_ratio", "nonsingletonClasses"})
+	time.Sleep(10)
+	fmt.Println("Writing header")
 	primeChan := make(chan int)
 	//listEmpty := make(chan bool)
-	out := make(chan []string)
+	//out := make(chan []string)
 
 	go parsePrimeListCSV(primeChan)
 	//go writeIt(out, writer)
 	//go writeIt(out, writer)
 
-	writer.Write([]string{"p", "h_avg", "h_max", "n_avg", "n_max", "t_avg", "t_max", "singleton_ratio", "nonsingletonClasses"})
-
-	go func() {
-		for {
-			writer.Write(<-out)
-		}
-	}()
 	//p := 11
 	var waitToScore sync.WaitGroup
+
 	for {
 		portChan := make(chan []preP)
 		p := <-primeChan
 		go buildPrimePortrait(p, portChan, &waitToScore)
-		go scorePrimePortrait(p, portChan, out)
+		go scorePrimePortrait(p, portChan, writer)
 		waitToScore.Wait()
 	}
 }
 
 //scorePrimePortrait takes a prime portrait slice, port, and puts outputData onto the outData channel
-func scorePrimePortrait(p int, portChan <-chan []preP, outdata chan<- []string) {
+func scorePrimePortrait(p int, portChan <-chan []preP, writer *csv.Writer) {
 	port := <-portChan
 	var out outputData
 	h_max := 0
@@ -119,7 +117,7 @@ func scorePrimePortrait(p int, portChan <-chan []preP, outdata chan<- []string) 
 	out.singletonRatio = float64(singleton_count) / float64(p)
 	out.nonsingletonClasses = t_count
 	fmt.Println(out.p)
-	outdata <- []string{strconv.Itoa(out.p), strconv.FormatFloat(out.h_avg, 'f', -1, 64), strconv.Itoa(out.h_max), strconv.FormatFloat(out.n_avg, 'f', -1, 64), strconv.Itoa(out.n_max), strconv.FormatFloat(out.t_avg, 'f', -1, 64), strconv.Itoa(out.t_max), strconv.FormatFloat(out.singletonRatio, 'f', -1, 64), strconv.Itoa(out.nonsingletonClasses)}
+	writeIt([]string{strconv.Itoa(out.p), strconv.FormatFloat(out.h_avg, 'f', -1, 64), strconv.Itoa(out.h_max), strconv.FormatFloat(out.n_avg, 'f', -1, 64), strconv.Itoa(out.n_max), strconv.FormatFloat(out.t_avg, 'f', -1, 64), strconv.Itoa(out.t_max), strconv.FormatFloat(out.singletonRatio, 'f', -1, 64), strconv.Itoa(out.nonsingletonClasses)}, writer)
 }
 
 //buildPrimePortrait builds an array of preperiodic portraits from channel of preperiodic portraits, as they come in. It returns this array.
@@ -131,7 +129,6 @@ func buildPrimePortrait(p int, portChan chan<- []preP, waitToScore *sync.WaitGro
 	for i := 1; i < p; i++ {
 		go preperiod(p, i, portrait, &wg)
 	}
-	//
 	for i := 1; i < p; i++ {
 		flag := false
 		new := <-portrait
@@ -221,10 +218,7 @@ func checkError(message string, err error) {
 	}
 }
 
-func writeIt(data chan []string, writer *csv.Writer) {
-	for {
-		output := <-data
-		err := writer.Write(output)
-		checkError("Write to file failed.", err)
-	}
+func writeIt(data []string, writer *csv.Writer) {
+	err := writer.Write(data)
+	checkError("Write to file failed.", err)
 }
