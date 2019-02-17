@@ -23,7 +23,6 @@ type preP struct {
 	//components      []block
 	//tempList	[][]int //edgeset is temporary and decrements as components are built.
 }
-
 type outputData struct {
 	p                   int
 	h_avg               float64
