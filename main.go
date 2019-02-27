@@ -36,7 +36,7 @@ type outputData struct {
 }
 
 func main() {
-	file, err := os.Create("preperiodicPortraitStats.csv")
+	file, err := os.Create("output/preperiodicPortraitStats.csv")
 	checkError("Cannot Create File", err)
 	defer file.Close()
 	writer := csv.NewWriter(file)
@@ -174,7 +174,7 @@ func preperiod(p int, c int, portrait chan<- preP, wg *sync.WaitGroup) {
 func parsePrimeListCSV(primeChan chan int) {
 	defer close(primeChan)
 	//open file logic
-	openFile, err := os.Open("list.prime")
+	openFile, err := os.Open("list/list.prime")
 	checkError("Failed to open prime list file.", err)
 	defer openFile.Close()
 
@@ -196,8 +196,8 @@ func parsePrimeListCSV(primeChan chan int) {
 func parsePrimeList(primeChan chan int) {
 	defer close(primeChan)
 	//open file logic
-	openFile, err := os.Open("list.prime")
-	checkError("Failed to open prime list file.", err)
+	openFile, err := os.Open("list/list.prime")
+	checkError("Failed to open prime list file. ", err)
 	defer openFile.Close()
 
 	scanner := bufio.NewScanner(openFile)
