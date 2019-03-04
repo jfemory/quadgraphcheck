@@ -24,12 +24,12 @@ type preP struct {
 }
 type outputData struct {
 	p                   int
-	h_avg               float64
-	h_max               int
-	n_avg               float64
-	n_max               int
-	t_avg               float64
-	t_max               int
+	hAvg                float64
+	hMax                int
+	nAvg                float64
+	nMax                int
+	tAvg                float64
+	tMax                int
 	singletonRatio      float64
 	nonsingletonClasses int
 }
@@ -43,7 +43,7 @@ func main() {
 	defer writer.Flush()
 
 	//initialize header of output csv file
-	writer.Write([]string{"p", "h_avg", "h_max", "n_avg", "n_max", "t_avg", "t_max", "singleton_ratio", "nonsingletonClasses"})
+	writer.Write([]string{"p", "hAvg", "hMax", "nAvg", "nMax", "tAvg", "tMax", "singletonRatio", "nonsingletonClasses"})
 	primeChan := make(chan int)
 
 	go parsePrimeListCSV(primeChan)
@@ -63,14 +63,14 @@ func main() {
 func scorePrimePortrait(p int, portChan <-chan []preP, writer *csv.Writer) {
 	port := <-portChan
 	var out outputData
-	h_max := 0
-	h_sum := 0
-	n_max := 1
-	n_sum := 1
-	t_sum := 0
-	t_count := 0
-	t_max := 0
-	singleton_count := 1
+	hMax := 0
+	hSum := 0
+	nMax := 1
+	nSum := 1
+	tSum := 0
+	tCount := 0
+	tMax := 0
+	singletonCount := 1
 	out.p = p
 
 	for i := 0; i < len(port); i++ {
@@ -78,39 +78,39 @@ func scorePrimePortrait(p int, portChan <-chan []preP, writer *csv.Writer) {
 		//set coefficient for sums
 		coeff := len(port[i].constant)
 		//increment x_sum and x_count
-		h_sum = h_sum + (coeff * port[i].critHeight)
-		n_sum = n_sum + (coeff * port[i].critCycleLength)
+		hSum = hSum + (coeff * port[i].critHeight)
+		nSum = nSum + (coeff * port[i].critCycleLength)
 		if len(port[i].constant) != 1 {
-			t_sum = t_sum + len(port[i].constant)
-			t_count++
+			tSum = tSum + len(port[i].constant)
+			tCount++
 		} else {
-			singleton_count++
+			singletonCount++
 		}
 		//update x_max
-		if h_max < port[i].critHeight {
-			h_max = port[i].critHeight
+		if hMax < port[i].critHeight {
+			hMax = port[i].critHeight
 		}
-		if n_max < port[i].critCycleLength {
-			n_max = port[i].critCycleLength
+		if nMax < port[i].critCycleLength {
+			nMax = port[i].critCycleLength
 		}
-		if t_max < len(port[i].constant) {
-			t_max = len(port[i].constant)
+		if tMax < len(port[i].constant) {
+			tMax = len(port[i].constant)
 		}
 	}
-	out.h_avg = float64(h_sum) / float64(p)
-	out.h_max = h_max
-	out.n_avg = float64(n_sum) / float64(p)
-	out.n_max = n_max
-	if t_count == 0 {
-		out.t_avg = 1
+	out.hAvg = float64(hSum) / float64(p)
+	out.hMax = hMax
+	out.nAvg = float64(nSum) / float64(p)
+	out.nMax = nMax
+	if tCount == 0 {
+		out.tAvg = 1
 	} else {
-		out.t_avg = float64(t_sum) / float64(t_count)
+		out.tAvg = float64(tSum) / float64(tCount)
 	}
-	out.t_max = t_max
-	out.singletonRatio = float64(singleton_count) / float64(p)
-	out.nonsingletonClasses = t_count
+	out.tMax = tMax
+	out.singletonRatio = float64(singletonCount) / float64(p)
+	out.nonsingletonClasses = tCount
 	fmt.Println(out.p)
-	writeIt([]string{strconv.Itoa(out.p), strconv.FormatFloat(out.h_avg, 'f', -1, 64), strconv.Itoa(out.h_max), strconv.FormatFloat(out.n_avg, 'f', -1, 64), strconv.Itoa(out.n_max), strconv.FormatFloat(out.t_avg, 'f', -1, 64), strconv.Itoa(out.t_max), strconv.FormatFloat(out.singletonRatio, 'f', -1, 64), strconv.Itoa(out.nonsingletonClasses)}, writer)
+	writeIt([]string{strconv.Itoa(out.p), strconv.FormatFloat(out.hAvg, 'f', -1, 64), strconv.Itoa(out.hMax), strconv.FormatFloat(out.nAvg, 'f', -1, 64), strconv.Itoa(out.nMax), strconv.FormatFloat(out.tAvg, 'f', -1, 64), strconv.Itoa(out.tMax), strconv.FormatFloat(out.singletonRatio, 'f', -1, 64), strconv.Itoa(out.nonsingletonClasses)}, writer)
 }
 
 //buildPrimePortrait builds an array of preperiodic portraits from channel of preperiodic portraits, as they come in. It returns this array.
