@@ -1,5 +1,7 @@
 package main
 
+//Updateing things and suff to make the foo better
+
 import (
 	"bufio"
 	"encoding/csv"
