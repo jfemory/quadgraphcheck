@@ -6,11 +6,18 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 )
+
+//critMatrix is a struct that stores functional graphs in a criticalHeight x criticalCycleLength sized matrix. They also hold the prime associated with the various funcGraphs.
+type critMatrix struct {
+	prime  int
+	matrix [][]funcGraph
+}
 
 //funcGraph is a struct representing a functional graph.
 type funcGraph struct {
@@ -20,6 +27,7 @@ type funcGraph struct {
 	//components      []block
 	//tempList	[][]int //edgeset is temporary and decrements as components are built.
 }
+
 type outputData struct {
 	p                   int
 	hAvg                float64
@@ -33,29 +41,59 @@ type outputData struct {
 }
 
 func main() {
-	//writer logic starts here
-	file, err := os.Create("output/preperiodicPortraitStats.csv")
-	checkError("Cannot Create File. ", err)
-	defer file.Close()
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
+	fmt.Println(critHeightAndCycle(17, 8))
+	/*
+		//writer logic starts here
+		file, err := os.Create("output/preperiodicPortraitStats.csv")
+		checkError("Cannot Create File. ", err)
+		defer file.Close()
+		writer := csv.NewWriter(file)
+		defer writer.Flush()
 
-	//initialize header of output csv file
-	writer.Write([]string{"p", "hAvg", "hMax", "nAvg", "nMax", "tAvg", "tMax", "singletonRatio", "nonsingletonClasses"})
-	primeChan := make(chan int)
+		//initialize header of output csv file
+		writer.Write([]string{"p", "hAvg", "hMax", "nAvg", "nMax", "tAvg", "tMax", "singletonRatio", "nonsingletonClasses"})
+		primeChan := make(chan int)
 
-	go parsePrimeListCSV(primeChan)
-
-	var waitToScore sync.WaitGroup
-
-	for {
 		portChan := make(chan []funcGraph)
-		p := <-primeChan
-		go buildPrimePortrait(p, portChan, &waitToScore)
-		go scorePrimePortrait(p, portChan, writer)
-		waitToScore.Wait()
-	}
+		critCycleCheckRootP(17, 8, portChan, &wg)
+
+		//start prime parser
+		//go parsePrimeListCSV(primeChan)
+
+		//var waitToScore sync.WaitGroup
+
+			for {
+				portChan := make(chan []funcGraph)
+				p := <-primeChan
+				buildPrimePortrait(p, portChan, &waitToScore)
+				waitToScore.Wait()
+				go scorePrimePortrait(p, portChan, writer)
+
+			}
+	*/
 }
+
+//critHeightAndCycle takes a prime and a constant, returning the critical point height and critial cycle length.
+func critHeightAndCycle(p, c int) (int, int) {
+	cycleSlice := []int{0}
+	for i := 0; i < p; i++ {
+		new := dynamicOperator(p, c, cycleSlice[i])
+		for j := 0; j < len(cycleSlice); j++ {
+			if new == cycleSlice[j] {
+				return (len(cycleSlice) - j), j
+			}
+		}
+		cycleSlice = append(cycleSlice, new)
+	}
+	return -1, -1
+}
+
+//dynamicOperator takes a prime, a constant, and a value, returning the next step in the dynamical system
+func dynamicOperator(p int, c int, value int) int {
+	return (((value * value) + c) % p)
+}
+
+//**********************Old Stuff, refactor or delete***********************************
 
 //scorePrimePortrait takes a prime portrait slice, port, and puts outputData onto the outData channel
 func scorePrimePortrait(p int, portChan <-chan []funcGraph, writer *csv.Writer) {
@@ -72,7 +110,6 @@ func scorePrimePortrait(p int, portChan <-chan []funcGraph, writer *csv.Writer) 
 	out.p = p
 
 	for i := 0; i < len(port); i++ {
-		//fmt.Println("a")
 		//set coefficient for sums
 		coeff := len(port[i].constant)
 		//increment x_sum and x_count
@@ -107,7 +144,7 @@ func scorePrimePortrait(p int, portChan <-chan []funcGraph, writer *csv.Writer) 
 	out.tMax = tMax
 	out.singletonRatio = float64(singletonCount) / float64(p)
 	out.nonsingletonClasses = tCount
-	fmt.Println(out.p)
+	//fmt.Println(out.p)  //output text for keep alive check
 	writeIt([]string{strconv.Itoa(out.p), strconv.FormatFloat(out.hAvg, 'f', -1, 64), strconv.Itoa(out.hMax), strconv.FormatFloat(out.nAvg, 'f', -1, 64), strconv.Itoa(out.nMax), strconv.FormatFloat(out.tAvg, 'f', -1, 64), strconv.Itoa(out.tMax), strconv.FormatFloat(out.singletonRatio, 'f', -1, 64), strconv.Itoa(out.nonsingletonClasses)}, writer)
 }
 
@@ -118,7 +155,7 @@ func buildPrimePortrait(p int, portChan chan<- []funcGraph, waitToScore *sync.Wa
 	portrait := make(chan funcGraph)
 	var wg sync.WaitGroup
 	for i := 1; i < p; i++ {
-		go funcGrapheriod(p, i, portrait, &wg)
+		go critCycleCheckRootP(p, i, portrait, &wg)
 	}
 	for i := 1; i < p; i++ {
 		flag := false
@@ -141,24 +178,53 @@ func buildPrimePortrait(p int, portChan chan<- []funcGraph, waitToScore *sync.Wa
 	portChan <- primePortrait
 }
 
-//funcGrapheriod takes a prime p and a constant c, putting a funcGraph onto the portrait chan. Run as a go routine.
-func funcGrapheriod(p int, c int, portrait chan<- funcGraph, wg *sync.WaitGroup) {
+//cycleCheck takes a prime and a starting point and returns the critical height and
+func critCycleCheck(p int, c int, portrait chan<- funcGraph, wg *sync.WaitGroup) {
 	wg.Add(1)
-	//fmt.Println(c)
-	cycleCheck := make([]int, 0)
-	cycleCheck = append(cycleCheck, 0)
-	var new int
+	cycleSlice := []int{0}
 	for i := 0; i < p; i++ {
-		new = (cycleCheck[i]*cycleCheck[i] + c) % p
-		for j := 0; j < len(cycleCheck); j++ {
-			if new == cycleCheck[j] {
-				portrait <- funcGraph{[]int{c}, (len(cycleCheck) - j), j}
+		new := dynamicOperator(p, c, cycleSlice[i])
+		for j := 0; j < len(cycleSlice); j++ {
+			if new == cycleSlice[j] {
+				portrait <- funcGraph{[]int{c}, (len(cycleSlice) - j), j}
 				wg.Done()
 				return
 			}
 		}
-		cycleCheck = append(cycleCheck, new)
+		cycleSlice = append(cycleSlice, new)
 	}
+}
+
+//***broken***, need to fix before using - delete if possible if refactored
+func critCycleCheckRootP(p int, c int, portrait chan<- funcGraph, wg *sync.WaitGroup) {
+	wg.Add(1)
+	steps := intSqrt(p)
+	fmt.Println("Step size is ", steps)
+	cycleSlice := []int{0}
+	for i := 0; i < steps+1; i++ {
+		new := buildDynamicSlice(p, c, cycleSlice[len(cycleSlice)-1], steps)
+		cycleSlice = append(cycleSlice, new...)
+		fmt.Println(cycleSlice)
+		for j := 0; j < len(new); j++ {
+			for k := 0; k < len(cycleSlice); k++ {
+				if new[j] == cycleSlice[k] {
+					portrait <- funcGraph{[]int{c}, (len(cycleSlice) - k), k}
+					fmt.Println("********************")
+					wg.Done()
+					return
+				}
+			}
+		}
+	}
+}
+
+//buildDynamicSlice takes a prime, a constant, and a starting value, returning a slice of values from the starting point (not inclusive) for a given number of steps.
+func buildDynamicSlice(p, c, startValue, steps int) []int {
+	output := []int{dynamicOperator(p, c, startValue)}
+	for i := 0; i < steps; i++ {
+		output = append(output, dynamicOperator(p, c, output[i]))
+	}
+	return output
 }
 
 //parsePrimeList takes a CSV of primes and pushes them one by one onto primeChan
@@ -209,4 +275,9 @@ func checkError(message string, err error) {
 func writeIt(data []string, writer *csv.Writer) {
 	err := writer.Write(data)
 	checkError("Write to file failed. ", err)
+}
+
+//intSqrt takes an integer, takes the square root, and returns the floor function of the result
+func intSqrt(input int) int {
+	return int(math.Floor(math.Sqrt(float64(input))))
 }
