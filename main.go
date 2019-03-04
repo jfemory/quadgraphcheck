@@ -10,12 +10,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 )
 
-//funcGraph is a struct that holds the reduced graph information for each constant
-//for a given prime. The prime is not included as part of the constPackage, as there
-//is an array of these associated with a given prime.
+//preP is a struct representing the preperiodic portrait of the critical component of a functional graph.
 type preP struct {
 	constant        []int
 	critHeight      int
@@ -36,24 +33,19 @@ type outputData struct {
 }
 
 func main() {
+	//writer logic starts here
 	file, err := os.Create("output/preperiodicPortraitStats.csv")
-	checkError("Cannot Create File", err)
+	checkError("Cannot Create File. ", err)
 	defer file.Close()
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
 
+	//initialize header of output csv file
 	writer.Write([]string{"p", "h_avg", "h_max", "n_avg", "n_max", "t_avg", "t_max", "singleton_ratio", "nonsingletonClasses"})
-	time.Sleep(10)
-	fmt.Println("Writing header")
 	primeChan := make(chan int)
-	//listEmpty := make(chan bool)
-	//out := make(chan []string)
 
 	go parsePrimeListCSV(primeChan)
-	//go writeIt(out, writer)
-	//go writeIt(out, writer)
 
-	//p := 11
 	var waitToScore sync.WaitGroup
 
 	for {
@@ -149,8 +141,7 @@ func buildPrimePortrait(p int, portChan chan<- []preP, waitToScore *sync.WaitGro
 	portChan <- primePortrait
 }
 
-//preperiod takes a prime p and a constant c, putting a preP
-//onto the portrait chan. Run as a go routine.
+//preperiod takes a prime p and a constant c, putting a preP onto the portrait chan. Run as a go routine.
 func preperiod(p int, c int, portrait chan<- preP, wg *sync.WaitGroup) {
 	wg.Add(1)
 	//fmt.Println(c)
@@ -175,7 +166,7 @@ func parsePrimeListCSV(primeChan chan int) {
 	defer close(primeChan)
 	//open file logic
 	openFile, err := os.Open("list/list.prime")
-	checkError("Failed to open prime list file.", err)
+	checkError("Failed to open prime list file. ", err)
 	defer openFile.Close()
 
 	reader := csv.NewReader(bufio.NewReader(openFile))
@@ -189,7 +180,6 @@ func parsePrimeListCSV(primeChan chan int) {
 			primeChan <- prime
 		}
 	}
-	//	checkError("bufio problem, figure it out...", err)
 }
 
 //parsePrimeList takes a list of primes and pushes them one by one onto primeChan
@@ -208,7 +198,6 @@ func parsePrimeList(primeChan chan int) {
 			primeChan <- prime
 		}
 	}
-	//	checkError("bufio problem, figure it out...", err)
 }
 
 func checkError(message string, err error) {
@@ -219,5 +208,5 @@ func checkError(message string, err error) {
 
 func writeIt(data []string, writer *csv.Writer) {
 	err := writer.Write(data)
-	checkError("Write to file failed.", err)
+	checkError("Write to file failed. ", err)
 }
