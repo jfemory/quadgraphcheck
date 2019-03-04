@@ -1,7 +1,5 @@
 package main
 
-//Updateing things and suff to make the foo better
-
 import (
 	"bufio"
 	"encoding/csv"
@@ -14,8 +12,8 @@ import (
 	"sync"
 )
 
-//preP is a struct representing the preperiodic portrait of the critical component of a functional graph.
-type preP struct {
+//funcGraph is a struct representing a functional graph.
+type funcGraph struct {
 	constant        []int
 	critHeight      int
 	critCycleLength int
@@ -51,7 +49,7 @@ func main() {
 	var waitToScore sync.WaitGroup
 
 	for {
-		portChan := make(chan []preP)
+		portChan := make(chan []funcGraph)
 		p := <-primeChan
 		go buildPrimePortrait(p, portChan, &waitToScore)
 		go scorePrimePortrait(p, portChan, writer)
@@ -60,7 +58,7 @@ func main() {
 }
 
 //scorePrimePortrait takes a prime portrait slice, port, and puts outputData onto the outData channel
-func scorePrimePortrait(p int, portChan <-chan []preP, writer *csv.Writer) {
+func scorePrimePortrait(p int, portChan <-chan []funcGraph, writer *csv.Writer) {
 	port := <-portChan
 	var out outputData
 	hMax := 0
@@ -113,14 +111,14 @@ func scorePrimePortrait(p int, portChan <-chan []preP, writer *csv.Writer) {
 	writeIt([]string{strconv.Itoa(out.p), strconv.FormatFloat(out.hAvg, 'f', -1, 64), strconv.Itoa(out.hMax), strconv.FormatFloat(out.nAvg, 'f', -1, 64), strconv.Itoa(out.nMax), strconv.FormatFloat(out.tAvg, 'f', -1, 64), strconv.Itoa(out.tMax), strconv.FormatFloat(out.singletonRatio, 'f', -1, 64), strconv.Itoa(out.nonsingletonClasses)}, writer)
 }
 
-//buildPrimePortrait builds an array of preperiodic portraits from channel of preperiodic portraits, as they come in. It returns this array.
-func buildPrimePortrait(p int, portChan chan<- []preP, waitToScore *sync.WaitGroup) {
+//buildPrimePortrait builds an array of funcGrapheriodic portraits from channel of funcGrapheriodic portraits, as they come in. It returns this array.
+func buildPrimePortrait(p int, portChan chan<- []funcGraph, waitToScore *sync.WaitGroup) {
 	waitToScore.Add(1)
-	primePortrait := make([]preP, 0)
-	portrait := make(chan preP)
+	primePortrait := make([]funcGraph, 0)
+	portrait := make(chan funcGraph)
 	var wg sync.WaitGroup
 	for i := 1; i < p; i++ {
-		go preperiod(p, i, portrait, &wg)
+		go funcGrapheriod(p, i, portrait, &wg)
 	}
 	for i := 1; i < p; i++ {
 		flag := false
@@ -143,8 +141,8 @@ func buildPrimePortrait(p int, portChan chan<- []preP, waitToScore *sync.WaitGro
 	portChan <- primePortrait
 }
 
-//preperiod takes a prime p and a constant c, putting a preP onto the portrait chan. Run as a go routine.
-func preperiod(p int, c int, portrait chan<- preP, wg *sync.WaitGroup) {
+//funcGrapheriod takes a prime p and a constant c, putting a funcGraph onto the portrait chan. Run as a go routine.
+func funcGrapheriod(p int, c int, portrait chan<- funcGraph, wg *sync.WaitGroup) {
 	wg.Add(1)
 	//fmt.Println(c)
 	cycleCheck := make([]int, 0)
@@ -154,7 +152,7 @@ func preperiod(p int, c int, portrait chan<- preP, wg *sync.WaitGroup) {
 		new = (cycleCheck[i]*cycleCheck[i] + c) % p
 		for j := 0; j < len(cycleCheck); j++ {
 			if new == cycleCheck[j] {
-				portrait <- preP{[]int{c}, (len(cycleCheck) - j), j}
+				portrait <- funcGraph{[]int{c}, (len(cycleCheck) - j), j}
 				wg.Done()
 				return
 			}
