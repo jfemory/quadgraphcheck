@@ -57,7 +57,7 @@ type preperiodicOutputData struct {
 func main() {
 	var nextPrimeWG sync.WaitGroup
 	//writePreperiodicStatsChan := make(chan preperiodicOutputData)
-	computePrimeStats(17, &nextPrimeWG)
+	computePrimeStats(7, &nextPrimeWG)
 	/*
 		//writer logic starts here
 		file, err := os.Create("output/preperiodicPortraitStats.csv")
@@ -68,24 +68,6 @@ func main() {
 
 		//initialize header of output csv file
 		writer.Write([]string{"prime", "hAvg", "hMax", "nAvg", "nMax", "tAvg", "tMax", "singletonRatio", "nonsingletonClasses"})
-		primeChan := make(chan int)
-
-		portChan := make(chan []funcGraph)
-		critCycleCheckRootP(17, 8, portChan, &wg)
-
-		//start prime parser
-		//go parsePrimeListCSV(primeChan)
-
-		//var waitToScore sync.WaitGroup
-
-			for {
-				portChan := make(chan []funcGraph)
-				prime := <-primeChan
-				buildPrimePortrait(prime, portChan, &waitToScore)
-				waitToScore.Wait()
-				go scorePrimePortrait(prime, portChan, writer)
-
-			}
 	*/
 }
 
@@ -94,12 +76,10 @@ func main() {
 //nextPrimeWG lets the calling function know when to start the next prime computation.
 //this should occur after completing critMatrix writing but before critMatrix scoring.
 func computePrimeStats(prime int, nextPrimeWG *sync.WaitGroup) {
-	fmt.Println("Initializing nextPrimeWG counter...")
 	nextPrimeWG.Add(prime - 1)
 	critMatrixEntryChan := make(chan critMatrixEntry)
-	fmt.Println("Initializing critMatrixEntryChan...")
+
 	go critMatrixWriter(prime, nextPrimeWG, critMatrixEntryChan)
-	fmt.Println("Initializing critMatrixWriter...")
 	for constant := 1; constant < prime; constant++ {
 		go buildPreperiodicPortrait(prime, constant, nextPrimeWG, critMatrixEntryChan)
 	}
@@ -133,16 +113,24 @@ func critHeightAndCycle(prime, constant int) (int, int) {
 //critMatrixWriter is run as a goroutine. It takes a channel of matrixEntries, and writes them to the matrix as they come in.
 //This funtion also initializes its own matrix.
 func critMatrixWriter(prime int, nextPrimeWG *sync.WaitGroup, critMatrixEntryChan <-chan critMatrixEntry) {
-	fmt.Println("critMatrixWriter initialized.")
 	critMatrix := initializeCritMatrix(prime)
-	fmt.Println("critMatrix initialized.")
-	for i := 0; i < prime; i++ {
+	fmt.Println(critMatrix)
+	for i := 0; i < prime-1; i++ {
 		a := <-critMatrixEntryChan //a is a matrix entry from the channel
 		fmt.Println(a)
-		critMatrix[a.h][a.n] = append(critMatrix[a.h][a.n], a.constant)
+		h := a.h
+		n := a.n
+		critMatrix[h][n] = append(critMatrix[h][n], a.constant)
+		if i == (prime - 2) {
+			fmt.Println("test")
+			fmt.Println(critMatrix)
+		}
 	}
 	nextPrimeWG.Wait()
-	fmt.Println(critMatrix)
+}
+
+func critMatrixAppend() {
+
 }
 
 //initializeCritMatrix takes a prime and initialzes the matrix that is hopefully big enough.
@@ -152,6 +140,9 @@ func initializeCritMatrix(prime int) critMatrix {
 	matrix := make(critMatrix, upperBound)
 	for i := range matrix {
 		matrix[i] = make([][]int, upperBound)
+		for j := range matrix {
+			matrix[i][j] = make([]int, 0)
+		}
 	}
 	return matrix
 	//TODO: Add error
