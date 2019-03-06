@@ -1,0 +1,7 @@
+// {type:class}
+[input: p]->[Build Prime Portrait for each c]
+[Build Prime Portrait for each c]->[Write critMatrix]
+[Generate critMatrix]->[Write critMatrix]
+[Write critMatrix]->[Score Crit Matrix]
+[Score Crit Matrix]->[Parse non-singletons]
+[Parse non-singletons]->[Tree isomorphism check on critical component]

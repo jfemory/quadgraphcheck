@@ -1,0 +1,9 @@
+// Activity diagram for the main process of the yUML extension for VSCode
+// {type:class}
+// {generate:true}
+// {direction:leftToRight}
+[computePrime]->[write Preperiodic Stats]
+[computePrime]->[write ZeroComponent Isomorphism Stats]
+[computePrime]->[write AllComponent Size Stats]
+[computePrime]->[write AllComponent Tree Isomorphism Stats]
+[buildPrimePortrait]->[matrixWriter\r return: matrix]

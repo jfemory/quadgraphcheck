@@ -21,7 +21,7 @@ func TestCritHeightAndCycle(t *testing.T) {
 	for _, test := range critHeightAndCycleResults {
 		resultHeight, resultCycle := critHeightAndCycle(test.p, test.c)
 		if resultHeight != test.expectedCritHeight || resultCycle != test.expectedCritCycle {
-			t.Error("Check critHeightAndCycle function.")
+			t.Fatal("Check critHeightAndCycle function.")
 		}
 	}
 }
@@ -42,7 +42,7 @@ func TestDynamicOperator(t *testing.T) {
 	for _, test := range dynamicOperatorResults {
 		result := dynamicOperator(test.p, test.c, test.value)
 		if result != test.expected {
-			t.Error("Check dynamicOperator function.")
+			t.Fatal("Check dynamicOperator function.")
 		}
 	}
 }

@@ -1,3 +1,12 @@
+/*#quadgraphcheck
+Quadratic Functional Graph Isomorphism Checker
+
+The quadratic functional graph isomorphism checker takes a prime number and checks
+to see if any of the associated functional graphs are isomorphic. Uploads will be
+coming over the next few days.
+
+Place a list of primes in a folder called "list/list.prime" under the
+source directory.*/
 package main
 
 import (
@@ -16,6 +25,14 @@ import (
 //critMatrix is a maxCriticalHeight x maxCriticalCycle indexed matrix of arrays of ints where the ints represent the constants associated with a given preperiodic portrait.
 type critMatrix [][][]int
 
+//critcritMatrixEntry is passed to the matrix writer function and contains the index as a length 2 array
+//and the constant to be written.
+type critMatrixEntry struct {
+	h        int
+	n        int
+	constant int
+}
+
 //funcGraph is a struct representing a functional graph.
 type funcGraph struct {
 	constant        []int
@@ -25,8 +42,8 @@ type funcGraph struct {
 	//tempList	[][]int //edgeset is temporary and decrements as components are built.
 }
 
-type outputData struct {
-	p                   int
+type preperiodicOutputData struct {
+	prime               int
 	hAvg                float64
 	hMax                int
 	nAvg                float64
@@ -38,8 +55,9 @@ type outputData struct {
 }
 
 func main() {
-	fmt.Println(buildPreperiodicPortrait(13, 2))
-	fmt.Println(initializeCritMatrix(41))
+	var nextPrimeWG sync.WaitGroup
+	//writePreperiodicStatsChan := make(chan preperiodicOutputData)
+	computePrimeStats(17, &nextPrimeWG)
 	/*
 		//writer logic starts here
 		file, err := os.Create("output/preperiodicPortraitStats.csv")
@@ -49,7 +67,7 @@ func main() {
 		defer writer.Flush()
 
 		//initialize header of output csv file
-		writer.Write([]string{"p", "hAvg", "hMax", "nAvg", "nMax", "tAvg", "tMax", "singletonRatio", "nonsingletonClasses"})
+		writer.Write([]string{"prime", "hAvg", "hMax", "nAvg", "nMax", "tAvg", "tMax", "singletonRatio", "nonsingletonClasses"})
 		primeChan := make(chan int)
 
 		portChan := make(chan []funcGraph)
@@ -62,26 +80,45 @@ func main() {
 
 			for {
 				portChan := make(chan []funcGraph)
-				p := <-primeChan
-				buildPrimePortrait(p, portChan, &waitToScore)
+				prime := <-primeChan
+				buildPrimePortrait(prime, portChan, &waitToScore)
 				waitToScore.Wait()
-				go scorePrimePortrait(p, portChan, writer)
+				go scorePrimePortrait(prime, portChan, writer)
 
 			}
 	*/
 }
 
+//computePrimeStats takes a prime and builds all the statistics relating to that prime.
+//It puts the stats onto various channels that have writers for different output files.
+//nextPrimeWG lets the calling function know when to start the next prime computation.
+//this should occur after completing critMatrix writing but before critMatrix scoring.
+func computePrimeStats(prime int, nextPrimeWG *sync.WaitGroup) {
+	fmt.Println("Initializing nextPrimeWG counter...")
+	nextPrimeWG.Add(prime - 1)
+	critMatrixEntryChan := make(chan critMatrixEntry)
+	fmt.Println("Initializing critMatrixEntryChan...")
+	go critMatrixWriter(prime, nextPrimeWG, critMatrixEntryChan)
+	fmt.Println("Initializing critMatrixWriter...")
+	for constant := 1; constant < prime; constant++ {
+		go buildPreperiodicPortrait(prime, constant, nextPrimeWG, critMatrixEntryChan)
+	}
+	nextPrimeWG.Wait()
+	close(critMatrixEntryChan)
+}
+
 //buildPreperiodicPortrait takes a prime and a constant, returning a funcGraph with constant, critHeight, and critCycleLength filled in.
-func buildPreperiodicPortrait(p, c int) funcGraph {
-	critHeight, critCycleLength := critHeightAndCycle(p, c)
-	return funcGraph{[]int{c}, critHeight, critCycleLength}
+func buildPreperiodicPortrait(prime, constant int, nextPrimeWG *sync.WaitGroup, critMatrixEntryChan chan<- critMatrixEntry) {
+	critHeight, critCycleLength := critHeightAndCycle(prime, constant)
+	critMatrixEntryChan <- critMatrixEntry{critHeight, critCycleLength, constant}
+	nextPrimeWG.Done()
 }
 
 //critHeightAndCycle takes a prime and a constant, returning the critical point height and critial cycle length.
-func critHeightAndCycle(p, c int) (int, int) {
+func critHeightAndCycle(prime, constant int) (int, int) {
 	cycleSlice := []int{0}
-	for i := 0; i < p; i++ {
-		new := dynamicOperator(p, c, cycleSlice[i])
+	for i := 0; i < prime; i++ {
+		new := dynamicOperator(prime, constant, cycleSlice[i])
 		for j := 0; j < len(cycleSlice); j++ {
 			if new == cycleSlice[j] {
 				return j, (len(cycleSlice) - j)
@@ -93,12 +130,25 @@ func critHeightAndCycle(p, c int) (int, int) {
 	return -1, -1
 }
 
-//critMatrixWriter
+//critMatrixWriter is run as a goroutine. It takes a channel of matrixEntries, and writes them to the matrix as they come in.
+//This funtion also initializes its own matrix.
+func critMatrixWriter(prime int, nextPrimeWG *sync.WaitGroup, critMatrixEntryChan <-chan critMatrixEntry) {
+	fmt.Println("critMatrixWriter initialized.")
+	critMatrix := initializeCritMatrix(prime)
+	fmt.Println("critMatrix initialized.")
+	for i := 0; i < prime; i++ {
+		a := <-critMatrixEntryChan //a is a matrix entry from the channel
+		fmt.Println(a)
+		critMatrix[a.h][a.n] = append(critMatrix[a.h][a.n], a.constant)
+	}
+	nextPrimeWG.Wait()
+	fmt.Println(critMatrix)
+}
 
-//initializeCritMatrix taks arguments of an estimated maxH and maxN and initialzes the matrix.
-func initializeCritMatrix(p int) critMatrix {
-	// * let's start with 300*ln(p) as a guesstimate. Will revise with better data. Examine curve and rewrite.
-	upperBound := 300 * int(math.Floor(math.Log(float64(p))))
+//initializeCritMatrix takes a prime and initialzes the matrix that is hopefully big enough.
+func initializeCritMatrix(prime int) critMatrix {
+	// * let's start with 300*ln(prime) as a guesstimate. Will revise with better data. Examine curve and rewrite.
+	upperBound := 300 * int(math.Floor(math.Log(float64(prime))))
 	matrix := make(critMatrix, upperBound)
 	for i := range matrix {
 		matrix[i] = make([][]int, upperBound)
@@ -108,16 +158,16 @@ func initializeCritMatrix(p int) critMatrix {
 }
 
 //dynamicOperator takes a prime, a constant, and a value, returning the next step in the dynamical system
-func dynamicOperator(p int, c int, value int) int {
-	return (((value * value) + c) % p)
+func dynamicOperator(prime int, constant int, value int) int {
+	return (((value * value) + constant) % prime)
 }
 
 //**********************Old Stuff, refactor or delete***********************************
 
 //scorePrimePortrait takes a prime portrait slice, port, and puts outputData onto the outData channel
-func scorePrimePortrait(p int, portChan <-chan []funcGraph, writer *csv.Writer) {
+func scorePrimePortrait(prime int, portChan <-chan []funcGraph, writer *csv.Writer) {
 	port := <-portChan
-	var out outputData
+	var out preperiodicOutputData
 	hMax := 0
 	hSum := 0
 	nMax := 1
@@ -126,7 +176,7 @@ func scorePrimePortrait(p int, portChan <-chan []funcGraph, writer *csv.Writer) 
 	tCount := 0
 	tMax := 0
 	singletonCount := 1
-	out.p = p
+	out.prime = prime
 
 	for i := 0; i < len(port); i++ {
 		//set coefficient for sums
@@ -151,9 +201,9 @@ func scorePrimePortrait(p int, portChan <-chan []funcGraph, writer *csv.Writer) 
 			tMax = len(port[i].constant)
 		}
 	}
-	out.hAvg = float64(hSum) / float64(p)
+	out.hAvg = float64(hSum) / float64(prime)
 	out.hMax = hMax
-	out.nAvg = float64(nSum) / float64(p)
+	out.nAvg = float64(nSum) / float64(prime)
 	out.nMax = nMax
 	if tCount == 0 {
 		out.tAvg = 1
@@ -161,22 +211,22 @@ func scorePrimePortrait(p int, portChan <-chan []funcGraph, writer *csv.Writer) 
 		out.tAvg = float64(tSum) / float64(tCount)
 	}
 	out.tMax = tMax
-	out.singletonRatio = float64(singletonCount) / float64(p)
+	out.singletonRatio = float64(singletonCount) / float64(prime)
 	out.nonsingletonClasses = tCount
-	//fmt.Println(out.p)  //output text for keep alive check
-	writeIt([]string{strconv.Itoa(out.p), strconv.FormatFloat(out.hAvg, 'f', -1, 64), strconv.Itoa(out.hMax), strconv.FormatFloat(out.nAvg, 'f', -1, 64), strconv.Itoa(out.nMax), strconv.FormatFloat(out.tAvg, 'f', -1, 64), strconv.Itoa(out.tMax), strconv.FormatFloat(out.singletonRatio, 'f', -1, 64), strconv.Itoa(out.nonsingletonClasses)}, writer)
+	//fmt.Println(out.prime)  //output text for keep alive check
+	writeIt([]string{strconv.Itoa(out.prime), strconv.FormatFloat(out.hAvg, 'f', -1, 64), strconv.Itoa(out.hMax), strconv.FormatFloat(out.nAvg, 'f', -1, 64), strconv.Itoa(out.nMax), strconv.FormatFloat(out.tAvg, 'f', -1, 64), strconv.Itoa(out.tMax), strconv.FormatFloat(out.singletonRatio, 'f', -1, 64), strconv.Itoa(out.nonsingletonClasses)}, writer)
 }
 
 //buildPrimePortrait builds an array of funcGrapheriodic portraits from channel of funcGrapheriodic portraits, as they come in. It returns this array.
-func buildPrimePortrait(p int, portChan chan<- []funcGraph, waitToScore *sync.WaitGroup) {
+func buildPrimePortrait(prime int, portChan chan<- []funcGraph, waitToScore *sync.WaitGroup) {
 	waitToScore.Add(1)
 	primePortrait := make([]funcGraph, 0)
 	portrait := make(chan funcGraph)
 	var wg sync.WaitGroup
-	for i := 1; i < p; i++ {
-		go critCycleCheckRootP(p, i, portrait, &wg)
+	for i := 1; i < prime; i++ {
+		go critCycleCheckRootP(prime, i, portrait, &wg)
 	}
-	for i := 1; i < p; i++ {
+	for i := 1; i < prime; i++ {
 		flag := false
 		new := <-portrait
 		for j := 0; j < len(primePortrait); j++ {
@@ -198,19 +248,19 @@ func buildPrimePortrait(p int, portChan chan<- []funcGraph, waitToScore *sync.Wa
 }
 
 //***broken***, need to fix before using - delete if possible if refactored
-func critCycleCheckRootP(p int, c int, portrait chan<- funcGraph, wg *sync.WaitGroup) {
+func critCycleCheckRootP(prime int, constant int, portrait chan<- funcGraph, wg *sync.WaitGroup) {
 	wg.Add(1)
-	steps := intSqrt(p)
+	steps := intSqrt(prime)
 	fmt.Println("Step size is ", steps)
 	cycleSlice := []int{0}
 	for i := 0; i < steps+1; i++ {
-		new := buildDynamicSlice(p, c, cycleSlice[len(cycleSlice)-1], steps)
+		new := buildDynamicSlice(prime, constant, cycleSlice[len(cycleSlice)-1], steps)
 		cycleSlice = append(cycleSlice, new...)
 		fmt.Println(cycleSlice)
 		for j := 0; j < len(new); j++ {
 			for k := 0; k < len(cycleSlice); k++ {
 				if new[j] == cycleSlice[k] {
-					portrait <- funcGraph{[]int{c}, (len(cycleSlice) - k), k}
+					portrait <- funcGraph{[]int{constant}, (len(cycleSlice) - k), k}
 					fmt.Println("********************")
 					wg.Done()
 					return
@@ -221,15 +271,15 @@ func critCycleCheckRootP(p int, c int, portrait chan<- funcGraph, wg *sync.WaitG
 }
 
 //buildDynamicSlice takes a prime, a constant, and a starting value, returning a slice of values from the starting point (not inclusive) for a given number of steps.
-func buildDynamicSlice(p, c, startValue, steps int) []int {
-	output := []int{dynamicOperator(p, c, startValue)}
+func buildDynamicSlice(prime, constant, startValue, steps int) []int {
+	output := []int{dynamicOperator(prime, constant, startValue)}
 	for i := 0; i < steps; i++ {
-		output = append(output, dynamicOperator(p, c, output[i]))
+		output = append(output, dynamicOperator(prime, constant, output[i]))
 	}
 	return output
 }
 
-//parsePrimeList takes a CSV of primes and pushes them one by one onto primeChan
+//parsePrimeListCSV takes a CSV of primes and pushes them one by one onto primeChan
 func parsePrimeListCSV(primeChan chan int) {
 	defer close(primeChan)
 	//open file logic
