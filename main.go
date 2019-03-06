@@ -20,10 +20,13 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
+type critMatrixConstants []int
+
 //critMatrix is a maxCriticalHeight x maxCriticalCycle indexed matrix of arrays of ints where the ints represent the constants associated with a given preperiodic portrait.
-type critMatrix [][][]int
+type critMatrix [][]critMatrixConstants
 
 //critcritMatrixEntry is passed to the matrix writer function and contains the index as a length 2 array
 //and the constant to be written.
@@ -57,7 +60,7 @@ type preperiodicOutputData struct {
 func main() {
 	var nextPrimeWG sync.WaitGroup
 	//writePreperiodicStatsChan := make(chan preperiodicOutputData)
-	computePrimeStats(7, &nextPrimeWG)
+	computePrimeStats(17, &nextPrimeWG)
 	/*
 		//writer logic starts here
 		file, err := os.Create("output/preperiodicPortraitStats.csv")
@@ -85,6 +88,7 @@ func computePrimeStats(prime int, nextPrimeWG *sync.WaitGroup) {
 	}
 	nextPrimeWG.Wait()
 	close(critMatrixEntryChan)
+	time.Sleep(5 * time.Second)
 }
 
 //buildPreperiodicPortrait takes a prime and a constant, returning a funcGraph with constant, critHeight, and critCycleLength filled in.
@@ -114,34 +118,25 @@ func critHeightAndCycle(prime, constant int) (int, int) {
 //This funtion also initializes its own matrix.
 func critMatrixWriter(prime int, nextPrimeWG *sync.WaitGroup, critMatrixEntryChan <-chan critMatrixEntry) {
 	critMatrix := initializeCritMatrix(prime)
-	fmt.Println(critMatrix)
 	for i := 0; i < prime-1; i++ {
 		a := <-critMatrixEntryChan //a is a matrix entry from the channel
-		fmt.Println(a)
-		h := a.h
-		n := a.n
-		critMatrix[h][n] = append(critMatrix[h][n], a.constant)
-		if i == (prime - 2) {
-			fmt.Println("test")
-			fmt.Println(critMatrix)
-		}
+		critMatrix[a.h][a.n] = append(critMatrix[a.h][a.n], a.constant)
+		fmt.Println(critMatrix)
+		fmt.Println(i)
 	}
 	nextPrimeWG.Wait()
-}
-
-func critMatrixAppend() {
-
 }
 
 //initializeCritMatrix takes a prime and initialzes the matrix that is hopefully big enough.
 func initializeCritMatrix(prime int) critMatrix {
 	// * let's start with 300*ln(prime) as a guesstimate. Will revise with better data. Examine curve and rewrite.
-	upperBound := 300 * int(math.Floor(math.Log(float64(prime))))
+	//upperBound := 10 * int(math.Floor(math.Log(float64(prime))))
+	upperBound := prime
 	matrix := make(critMatrix, upperBound)
 	for i := range matrix {
-		matrix[i] = make([][]int, upperBound)
-		for j := range matrix {
-			matrix[i][j] = make([]int, 0)
+		matrix[i] = make([]critMatrixConstants, upperBound)
+		for j := range matrix[i] {
+			matrix[i][j] = make(critMatrixConstants, 0)
 		}
 	}
 	return matrix
