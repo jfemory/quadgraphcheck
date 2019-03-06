@@ -28,12 +28,18 @@ type critMatrixConstants []int
 //critMatrix is a maxCriticalHeight x maxCriticalCycle indexed matrix of arrays of ints where the ints represent the constants associated with a given preperiodic portrait.
 type critMatrix [][]critMatrixConstants
 
-//critcritMatrixEntry is passed to the matrix writer function and contains the index as a length 2 array
+//critMatrixEntry is passed to the matrix writer function and contains the index as a length 2 array
 //and the constant to be written.
 type critMatrixEntry struct {
 	h        int
 	n        int
 	constant int
+}
+
+//funcGraphPackage is a struct holding a prime and and a slice of funcgraphs to be parsed
+type funcGraphPackage struct {
+	prime  int
+	graphs []funcGraph
 }
 
 //funcGraph is a struct representing a functional graph.
@@ -45,12 +51,32 @@ type funcGraph struct {
 	//tempList	[][]int //edgeset is temporary and decrements as components are built.
 }
 
+//preperiodicCounter is a working struct to keep track
+//of important values for computing preperiodic stats
+type preperiodicCounter struct {
+	hMax  int
+	hSum  int
+	nMax  int
+	nSum  int
+	hnMax int
+	hnSum int
+}
+
+type scraperCounter struct {
+	tMax            int
+	tSum            int
+	singletonSum    int
+	nonsingletonSum int
+}
+
 type preperiodicOutputData struct {
 	prime               int
 	hAvg                float64
 	hMax                int
 	nAvg                float64
 	nMax                int
+	hnAvg               float64
+	hnMax               int
 	tAvg                float64
 	tMax                int
 	singletonRatio      float64
@@ -117,21 +143,81 @@ func critHeightAndCycle(prime, constant int) (int, int) {
 //critMatrixWriter is run as a goroutine. It takes a channel of matrixEntries, and writes them to the matrix as they come in.
 //This funtion also initializes its own matrix.
 func critMatrixWriter(prime int, nextPrimeWG *sync.WaitGroup, critMatrixEntryChan <-chan critMatrixEntry) {
-	critMatrix := initializeCritMatrix(prime)
+	matrix := initializeCritMatrix(prime)
+	counter := preperiodicCounter{0, 0, 1, 1, 1, 1} //initialie counter after c=0 is accounted for
 	for i := 0; i < prime-1; i++ {
 		a := <-critMatrixEntryChan //a is a matrix entry from the channel
-		critMatrix[a.h][a.n] = append(critMatrix[a.h][a.n], a.constant)
-		fmt.Println(critMatrix)
-		fmt.Println(i)
+		incrementPreperiodicCounter(&counter, a)
+		matrix[a.h][a.n] = append(matrix[a.h][a.n], a.constant)
 	}
+	scoreCritMatrix(prime, matrix, counter)
 	nextPrimeWG.Wait()
+
+}
+func incrementPreperiodicCounter(counter *preperiodicCounter, entry critMatrixEntry) {
+	//update hMax
+	if counter.hMax < entry.h {
+		counter.hMax = entry.h
+	}
+	//update hSum
+	counter.hSum = counter.hSum + entry.h
+	//update nMax
+	if counter.nMax < entry.n {
+		counter.nMax = entry.n
+	}
+	//update nSum
+	counter.nSum = counter.nSum + entry.n
+	//update hnMax
+	if counter.hnMax < (entry.h + entry.n) {
+		counter.hnMax = (entry.h + entry.n)
+	}
+	//update hnSum
+	counter.hnSum = counter.hnSum + (entry.h + entry.n)
+}
+
+func scoreCritMatrix(prime int, matrix critMatrix, counter preperiodicCounter) {
+	//initialize out with prime, hMax, nMax, and hnMax.
+	out := preperiodicOutputData{prime, 0, counter.hMax, 0, counter.nMax, 0, counter.hnMax, 0, 0, 0, 0}
+	graphs := funcGraphPackage{prime, make([]funcGraph, 0)}
+	//need to set hAvg, nAvg, hnAvg, tAvg, tMax, singletonRatio and nonsingletonClasses.
+	//set hAvg
+	out.hAvg = float64(counter.hSum) / float64(prime)
+	out.nAvg = float64(counter.nSum) / float64(prime)
+	out.hnAvg = float64(counter.hnSum) / float64(prime)
+	out.tAvg, out.tMax, out.singletonRatio, out.nonsingletonClasses, graphs.graphs = matrixScraper(matrix)
+	fmt.Println(out)
+}
+
+func matrixScraper(matrix critMatrix) (float64, int, float64, int, []funcGraph) {
+	//also return []funcGraph
+	counter := scraperCounter{0, 0, 0, 0}
+	graphSlice := make([]funcGraph, 0)
+	for h := 0; h < len(matrix); h++ {
+		for n := 0; n < len(matrix[h]); n++ {
+			if len(matrix[h][n]) == 1 {
+				counter.singletonSum++ //increment singletonSum
+			} else if len(matrix[h][n]) == 2 {
+				counter.nonsingletonSum++ //increment nonsingletonSum
+				newT := len(matrix[h][n])
+				counter.tSum = counter.tSum + newT //increment tSum
+				if counter.tMax < newT {
+					counter.tMax = newT //update tMax
+				}
+				graphSlice = append(graphSlice, funcGraph{matrix[h][n], h, n})
+			}
+		}
+	}
+	tAvg := float64(counter.tSum) / float64(counter.nonsingletonSum)
+	singletonRatio := float64(counter.singletonSum) / float64(counter.singletonSum+counter.nonsingletonSum)
+
+	return tAvg, counter.tMax, singletonRatio, len(graphSlice), graphSlice
 }
 
 //initializeCritMatrix takes a prime and initialzes the matrix that is hopefully big enough.
 func initializeCritMatrix(prime int) critMatrix {
 	// * let's start with 300*ln(prime) as a guesstimate. Will revise with better data. Examine curve and rewrite.
-	//upperBound := 10 * int(math.Floor(math.Log(float64(prime))))
-	upperBound := prime
+	upperBound := 300 * int(math.Floor(math.Log(float64(prime))))
+	//upperBound := prime
 	matrix := make(critMatrix, upperBound)
 	for i := range matrix {
 		matrix[i] = make([]critMatrixConstants, upperBound)
