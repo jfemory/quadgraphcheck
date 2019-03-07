@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"strconv"
 	"sync"
@@ -85,6 +86,7 @@ type preperiodicOutputData struct {
 }
 
 func main() {
+	fmt.Println("starting")
 	//initialize preperiodicStatsWriter
 	filePreP, err := os.Create("output/preperiodicPortraitStats.csv")
 	checkError("Cannot Create File. ", err)
@@ -106,11 +108,13 @@ func main() {
 	//initialize header of output csv file
 	preperiodicWriter.Write([]string{"prime", "hAvg", "hMax", "nAvg", "nMax", "hnAvg", "hnMax", "tAvg", "tMax", "singletonRatio", "nonsingletonClasses"})
 	//
+	preperiodicChan := make(chan []string)
+	go writeIt(preperiodicWriter, preperiodicChan)
 	//* Select your primes, here.
 	for {
 		var nextPrimeWG sync.WaitGroup
 		p := <-primeChan
-		go computePrimeStats(p, &nextPrimeWG, preperiodicWriter)
+		go computePrimeStats(p, &nextPrimeWG, preperiodicChan)
 		nextPrimeWG.Wait()
 	}
 }
@@ -119,11 +123,11 @@ func main() {
 //It puts the stats onto various channels that have writers for different output files.
 //nextPrimeWG lets the calling function know when to start the next prime computation.
 //this should occur after completing critMatrix writing but before critMatrix scoring.
-func computePrimeStats(prime int, nextPrimeWG *sync.WaitGroup, preperiodicWriter *csv.Writer) {
+func computePrimeStats(prime int, nextPrimeWG *sync.WaitGroup, preperiodicChan chan<- []string) {
 	nextPrimeWG.Add(prime - 1)
 	critMatrixEntryChan := make(chan critMatrixEntry)
 
-	go critMatrixWriter(prime, nextPrimeWG, critMatrixEntryChan, preperiodicWriter)
+	go critMatrixWriter(prime, nextPrimeWG, critMatrixEntryChan, preperiodicChan)
 	for constant := 1; constant < prime; constant++ {
 		go buildPreperiodicPortrait(prime, constant, nextPrimeWG, critMatrixEntryChan)
 	}
@@ -156,7 +160,7 @@ func critHeightAndCycle(prime, constant int) (int, int) {
 
 //critMatrixWriter is run as a goroutine. It takes a channel of matrixEntries, and writes them to the matrix as they come in.
 //This funtion also initializes its own matrix.
-func critMatrixWriter(prime int, nextPrimeWG *sync.WaitGroup, critMatrixEntryChan <-chan critMatrixEntry, preperiodicWriter *csv.Writer) {
+func critMatrixWriter(prime int, nextPrimeWG *sync.WaitGroup, critMatrixEntryChan <-chan critMatrixEntry, preperiodicChan chan<- []string) {
 	matrix := initializeCritMatrix(prime)
 	counter := preperiodicCounter{0, 0, 0, 1, 1, 1} //initialie counter after c=0 is accounted for
 	for i := 0; i < prime-1; i++ {
@@ -165,8 +169,8 @@ func critMatrixWriter(prime int, nextPrimeWG *sync.WaitGroup, critMatrixEntryCha
 		matrix[a.h][a.n] = append(matrix[a.h][a.n], a.constant)
 	}
 	out := scoreCritMatrix(prime, matrix, counter)
-	fmt.Println(out.prime)
-	writeIt([]string{strconv.Itoa(out.prime), strconv.FormatFloat(out.hAvg, 'f', -1, 64), strconv.Itoa(out.hMax), strconv.FormatFloat(out.nAvg, 'f', -1, 64), strconv.Itoa(out.nMax), strconv.FormatFloat(out.hnAvg, 'f', -1, 64), strconv.Itoa(out.hnMax), strconv.FormatFloat(out.tAvg, 'f', -1, 64), strconv.Itoa(out.tMax), strconv.FormatFloat(out.singletonRatio, 'f', -1, 64), strconv.Itoa(out.nonsingletonClasses)}, preperiodicWriter)
+	preperiodicChan <- []string{strconv.Itoa(out.prime), strconv.FormatFloat(out.hAvg, 'f', -1, 64), strconv.Itoa(out.hMax), strconv.FormatFloat(out.nAvg, 'f', -1, 64), strconv.Itoa(out.nMax), strconv.FormatFloat(out.hnAvg, 'f', -1, 64), strconv.Itoa(out.hnMax), strconv.FormatFloat(out.tAvg, 'f', -1, 64), strconv.Itoa(out.tMax), strconv.FormatFloat(out.singletonRatio, 'f', -1, 64), strconv.Itoa(out.nonsingletonClasses)}
+	fmt.Println(prime)
 	nextPrimeWG.Wait()
 
 }
@@ -237,8 +241,7 @@ func matrixScraper(matrix critMatrix) (float64, int, float64, int, []funcGraph) 
 //initializeCritMatrix takes a prime and initialzes the matrix that is hopefully big enough.
 func initializeCritMatrix(prime int) critMatrix {
 	// * let's start with 300*ln(prime) as a guesstimate. Will revise with better data. Examine curve and rewrite.
-	//upperBound := 300 * int(math.Floor(math.Log(float64(prime))))
-	upperBound := prime
+	upperBound := 300 * int(math.Floor(math.Log(float64(prime))))
 	matrix := make(critMatrix, upperBound)
 	for i := range matrix {
 		matrix[i] = make([]critMatrixConstants, upperBound)
@@ -257,9 +260,11 @@ func dynamicOperator(prime int, constant int, value int) int {
 }
 
 //writeIt abstracts error handling for writers away from the programer.
-func writeIt(data []string, writer *csv.Writer) {
-	err := writer.Write(data)
-	checkError("Write to file failed. ", err)
+func writeIt(writer *csv.Writer, writerChan <-chan []string) {
+	for {
+		err := writer.Write(<-writerChan)
+		checkError("Write to file failed. ", err)
+	}
 }
 
 //parsePrimeListCSV takes a CSV of primes and pushes them one by one onto primeChan.
