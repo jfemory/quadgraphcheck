@@ -21,6 +21,7 @@ import (
 	//"time"
 )
 
+//critMatrixConstants are individual slices of constants when building a critical matrix.
 type critMatrixConstants []int
 
 //critMatrix is a maxCriticalHeight x maxCriticalCycle indexed matrix of arrays of ints where the ints represent the constants associated with a given preperiodic portrait.
@@ -60,6 +61,7 @@ type preperiodicCounter struct {
 	hnSum int
 }
 
+//scraperCounter is a counter that keeps track of scraper time data for preperiodic portraits.
 type scraperCounter struct {
 	tMax            int
 	tSum            int
@@ -67,6 +69,7 @@ type scraperCounter struct {
 	nonsingletonSum int
 }
 
+//preperiodicOutputData is data ready to be put through a wrapper for writing to a csv.
 type preperiodicOutputData struct {
 	prime               int
 	hAvg                float64
@@ -167,6 +170,8 @@ func critMatrixWriter(prime int, nextPrimeWG *sync.WaitGroup, critMatrixEntryCha
 	nextPrimeWG.Wait()
 
 }
+
+//incrementPreperiodicCounter takes a counter pointer and the entry to be addressed, and updates the counter.
 func incrementPreperiodicCounter(counter *preperiodicCounter, entry critMatrixEntry) {
 	//update hMax
 	if counter.hMax < entry.h {
@@ -188,6 +193,8 @@ func incrementPreperiodicCounter(counter *preperiodicCounter, entry critMatrixEn
 	counter.hnSum = counter.hnSum + (entry.h + entry.n)
 }
 
+//scoreCritMatrix takes a prime, a critical matrix, and an iterated counter, and returns
+//preperiodic output data.
 func scoreCritMatrix(prime int, matrix critMatrix, counter preperiodicCounter) preperiodicOutputData {
 	//initialize out with prime, hMax, nMax, and hnMax.
 	out := preperiodicOutputData{prime, 0, counter.hMax, 0, counter.nMax, 0, counter.hnMax, 0, 0, 0, 0}
@@ -201,6 +208,7 @@ func scoreCritMatrix(prime int, matrix critMatrix, counter preperiodicCounter) p
 	return out
 }
 
+//matrixScraper takes a critical matrix and scrapes it, returning counter stats.
 func matrixScraper(matrix critMatrix) (float64, int, float64, int, []funcGraph) {
 	//also return []funcGraph
 	counter := scraperCounter{0, 0, 0, 0}
@@ -243,17 +251,18 @@ func initializeCritMatrix(prime int) critMatrix {
 	//TODO: Add error
 }
 
-//dynamicOperator takes a prime, a constant, and a value, returning the next step in the dynamical system
+//dynamicOperator takes a prime, a constant, and a value, returning the next step in the dynamical system.
 func dynamicOperator(prime int, constant int, value int) int {
 	return (((value * value) + constant) % prime)
 }
 
+//writeIt abstracts error handling for writers away from the programer.
 func writeIt(data []string, writer *csv.Writer) {
 	err := writer.Write(data)
 	checkError("Write to file failed. ", err)
 }
 
-//parsePrimeListCSV takes a CSV of primes and pushes them one by one onto primeChan
+//parsePrimeListCSV takes a CSV of primes and pushes them one by one onto primeChan.
 func parsePrimeListCSV(primeChan chan int) {
 	defer close(primeChan)
 	//open file logic
@@ -274,6 +283,7 @@ func parsePrimeListCSV(primeChan chan int) {
 	}
 }
 
+//checkError returns fatal and an error message, given by the string.
 func checkError(message string, err error) {
 	if err != nil {
 		log.Fatal(message, err)
