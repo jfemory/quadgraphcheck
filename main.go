@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"strconv"
 	"sync"
@@ -57,6 +58,7 @@ type preperiodicCounter struct {
 	hnSum int
 }
 
+//scraperCounter is a counter that keeps track of scraper time data for preperiodic portraits.
 type scraperCounter struct {
 	tMax            int
 	tSum            int
@@ -64,6 +66,7 @@ type scraperCounter struct {
 	nonsingletonSum int
 }
 
+//preperiodicOutputData is data ready to be put through a wrapper for writing to a csv.
 type preperiodicOutputData struct {
 	prime               int
 	hAvg                float64
@@ -79,6 +82,7 @@ type preperiodicOutputData struct {
 }
 
 func main() {
+	fmt.Println("starting")
 	//initialize preperiodicStatsWriter
 	filePreP, err := os.Create("output/preperiodicPortraitStats.csv")
 	checkError("Cannot Create File. ", err)
@@ -115,11 +119,13 @@ func main() {
 //It puts the stats onto various channels that have writers for different output files.
 //nextPrimeWG lets the calling function know when to start the next prime computation.
 //this should occur after completing critHash writing but before critHash scoring.
+
 func computePrimeStats(prime int, nextPrimeWG *sync.WaitGroup, preperiodicChan chan<- []string) {
 	nextPrimeWG.Add(prime - 1)
 	critHashEntryChan := make(chan critHashEntry)
 
 	go critHashWriter(prime, nextPrimeWG, critHashEntryChan, preperiodicChan)
+
 	for constant := 1; constant < prime; constant++ {
 		go buildPreperiodicPortrait(prime, constant, nextPrimeWG, critHashEntryChan)
 	}
@@ -154,6 +160,7 @@ func critHeightAndCycle(prime, constant int) (int, int) {
 //This funtion also initializes its own hash.
 func critHashWriter(prime int, nextPrimeWG *sync.WaitGroup, critHashEntryChan <-chan critHashEntry, preperiodicChan chan<- []string) {
 	hash := make(map[preP][]int)
+
 	counter := preperiodicCounter{0, 0, 0, 1, 1, 1} //initialie counter after c=0 is accounted for
 	for i := 0; i < prime-1; i++ {
 		a := <-critHashEntryChan //a is a hash entry from the channel
@@ -163,11 +170,12 @@ func critHashWriter(prime int, nextPrimeWG *sync.WaitGroup, critHashEntryChan <-
 	out := scorecritHash(prime, hash, counter)
 	fmt.Println(out.prime)
 	preperiodicChan <- []string{strconv.Itoa(out.prime), strconv.FormatFloat(out.hAvg, 'f', -1, 64), strconv.Itoa(out.hMax), strconv.FormatFloat(out.nAvg, 'f', -1, 64), strconv.Itoa(out.nMax), strconv.FormatFloat(out.hnAvg, 'f', -1, 64), strconv.Itoa(out.hnMax), strconv.FormatFloat(out.tAvg, 'f', -1, 64), strconv.Itoa(out.tMax), strconv.FormatFloat(out.singletonRatio, 'f', -1, 64), strconv.Itoa(out.nonsingletonClasses)}
-	nextPrimeWG.Wait()
 
+	nextPrimeWG.Wait()
 }
 
 func incrementPreperiodicCounter(counter *preperiodicCounter, entry critHashEntry) {
+
 	//update hMax
 	if counter.hMax < entry.h {
 		counter.hMax = entry.h
@@ -189,6 +197,7 @@ func incrementPreperiodicCounter(counter *preperiodicCounter, entry critHashEntr
 }
 
 func scorecritHash(prime int, hash map[preP][]int, counter preperiodicCounter) preperiodicOutputData {
+
 	//initialize out with prime, hMax, nMax, and hnMax.
 	out := preperiodicOutputData{prime, 0, counter.hMax, 0, counter.nMax, 0, counter.hnMax, 0, 0, 0, 0}
 	graphs := funcGraphPackage{prime, make([]funcGraph, 0)}
@@ -202,6 +211,7 @@ func scorecritHash(prime int, hash map[preP][]int, counter preperiodicCounter) p
 }
 
 func hashScraper(hash map[preP][]int) (float64, int, float64, int, []funcGraph) {
+
 	//also return []funcGraph
 	counter := scraperCounter{0, 0, 0, 0}
 	graphSlice := make([]funcGraph, 0)
@@ -250,6 +260,7 @@ func parsePrimeListCSV(primeChan chan int) {
 	}
 }
 
+//checkError returns fatal and an error message, given by the string.
 func checkError(message string, err error) {
 	if err != nil {
 		log.Fatal(message, err)
