@@ -15,10 +15,8 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 	//"time"
 )
@@ -255,46 +253,6 @@ func writeIt(data []string, writer *csv.Writer) {
 	checkError("Write to file failed. ", err)
 }
 
-func checkError(message string, err error) {
-	if err != nil {
-		log.Fatal(message, err)
-	}
-}
-
-//**********************Old Stuff, refactor or delete***********************************
-
-//***broken***, need to fix before using - delete if possible if refactored
-func critCycleCheckRootP(prime int, constant int, portrait chan<- funcGraph, wg *sync.WaitGroup) {
-	wg.Add(1)
-	steps := intSqrt(prime)
-	fmt.Println("Step size is ", steps)
-	cycleSlice := []int{0}
-	for i := 0; i < steps+1; i++ {
-		new := buildDynamicSlice(prime, constant, cycleSlice[len(cycleSlice)-1], steps)
-		cycleSlice = append(cycleSlice, new...)
-		fmt.Println(cycleSlice)
-		for j := 0; j < len(new); j++ {
-			for k := 0; k < len(cycleSlice); k++ {
-				if new[j] == cycleSlice[k] {
-					portrait <- funcGraph{[]int{constant}, (len(cycleSlice) - k), k}
-					fmt.Println("********************")
-					wg.Done()
-					return
-				}
-			}
-		}
-	}
-}
-
-//buildDynamicSlice takes a prime, a constant, and a starting value, returning a slice of values from the starting point (not inclusive) for a given number of steps.
-func buildDynamicSlice(prime, constant, startValue, steps int) []int {
-	output := []int{dynamicOperator(prime, constant, startValue)}
-	for i := 0; i < steps; i++ {
-		output = append(output, dynamicOperator(prime, constant, output[i]))
-	}
-	return output
-}
-
 //parsePrimeListCSV takes a CSV of primes and pushes them one by one onto primeChan
 func parsePrimeListCSV(primeChan chan int) {
 	defer close(primeChan)
@@ -316,25 +274,8 @@ func parsePrimeListCSV(primeChan chan int) {
 	}
 }
 
-//parsePrimeList takes a list of primes and pushes them one by one onto primeChan
-func parsePrimeList(primeChan chan int) {
-	defer close(primeChan)
-	//open file logic
-	openFile, err := os.Open("list/list.prime")
-	checkError("Failed to open prime list file. ", err)
-	defer openFile.Close()
-
-	scanner := bufio.NewScanner(openFile)
-	for scanner.Scan() {
-		stringSlice := (strings.Split(strings.Trim(scanner.Text(), "[]"), " "))
-		for i := 0; i < len(stringSlice); i++ {
-			prime, _ := strconv.Atoi(stringSlice[i])
-			primeChan <- prime
-		}
+func checkError(message string, err error) {
+	if err != nil {
+		log.Fatal(message, err)
 	}
-}
-
-//intSqrt takes an integer, takes the square root, and returns the floor function of the result
-func intSqrt(input int) int {
-	return int(math.Floor(math.Sqrt(float64(input))))
 }
