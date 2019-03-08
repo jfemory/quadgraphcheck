@@ -15,11 +15,14 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"strconv"
 	"sync"
-	//"time"
+	"time"
+
+	"github.com/tj/go-spin"
 )
 
 type preP [2]int
@@ -82,6 +85,10 @@ type preperiodicOutputData struct {
 }
 
 func main() {
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
+
 	fmt.Println("starting")
 	//initialize preperiodicStatsWriter
 	filePreP, err := os.Create("output/preperiodicPortraitStats.csv")
@@ -106,6 +113,7 @@ func main() {
 	//
 	preperiodicChan := make(chan []string)
 	go writeIt(preperiodicWriter, preperiodicChan)
+	go spinIt()
 	//* Select your primes, here.
 	for {
 		var nextPrimeWG sync.WaitGroup
@@ -115,13 +123,27 @@ func main() {
 	}
 }
 
+func spinIt() {
+	s := spin.New()
+	for {
+		fmt.Printf("\r  \033[36mcomputing\033[m %s ", s.Next())
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+func printIt(printChan <-chan int) {
+	for {
+		fmt.Println(<-printChan)
+	}
+}
+
 //computePrimeStats takes a prime and builds all the statistics relating to that prime.
 //It puts the stats onto various channels that have writers for different output files.
 //nextPrimeWG lets the calling function know when to start the next prime computation.
 //this should occur after completing critHash writing but before critHash scoring.
 
 func computePrimeStats(prime int, nextPrimeWG *sync.WaitGroup, preperiodicChan chan<- []string) {
-	nextPrimeWG.Add(prime - 1)
+	nextPrimeWG.Add(prime)
 	critHashEntryChan := make(chan critHashEntry)
 
 	go critHashWriter(prime, nextPrimeWG, critHashEntryChan, preperiodicChan)
@@ -159,7 +181,7 @@ func critHeightAndCycle(prime, constant int) (int, int) {
 //critHashWriter is run as a goroutine. It takes a channel of hashEntries, and writes them to the hash as they come in.
 //This funtion also initializes its own hash.
 func critHashWriter(prime int, nextPrimeWG *sync.WaitGroup, critHashEntryChan <-chan critHashEntry, preperiodicChan chan<- []string) {
-	hash := make(map[preP][]int)
+	hash := make(map[preP][]int, prime)
 
 	counter := preperiodicCounter{0, 0, 0, 1, 1, 1} //initialie counter after c=0 is accounted for
 	for i := 0; i < prime-1; i++ {
@@ -167,11 +189,10 @@ func critHashWriter(prime int, nextPrimeWG *sync.WaitGroup, critHashEntryChan <-
 		incrementPreperiodicCounter(&counter, a)
 		hash[[2]int{a.h, a.n}] = append(hash[[2]int{a.h, a.n}], a.constant)
 	}
-	out := scorecritHash(prime, hash, counter)
-	fmt.Println(out.prime)
+	out := scorecritHash(prime, &hash, counter)
 	preperiodicChan <- []string{strconv.Itoa(out.prime), strconv.FormatFloat(out.hAvg, 'f', -1, 64), strconv.Itoa(out.hMax), strconv.FormatFloat(out.nAvg, 'f', -1, 64), strconv.Itoa(out.nMax), strconv.FormatFloat(out.hnAvg, 'f', -1, 64), strconv.Itoa(out.hnMax), strconv.FormatFloat(out.tAvg, 'f', -1, 64), strconv.Itoa(out.tMax), strconv.FormatFloat(out.singletonRatio, 'f', -1, 64), strconv.Itoa(out.nonsingletonClasses)}
 
-	nextPrimeWG.Wait()
+	nextPrimeWG.Done()
 }
 
 func incrementPreperiodicCounter(counter *preperiodicCounter, entry critHashEntry) {
@@ -196,7 +217,7 @@ func incrementPreperiodicCounter(counter *preperiodicCounter, entry critHashEntr
 	counter.hnSum = counter.hnSum + (entry.h + entry.n)
 }
 
-func scorecritHash(prime int, hash map[preP][]int, counter preperiodicCounter) preperiodicOutputData {
+func scorecritHash(prime int, hash *map[preP][]int, counter preperiodicCounter) preperiodicOutputData {
 
 	//initialize out with prime, hMax, nMax, and hnMax.
 	out := preperiodicOutputData{prime, 0, counter.hMax, 0, counter.nMax, 0, counter.hnMax, 0, 0, 0, 0}
@@ -206,7 +227,7 @@ func scorecritHash(prime int, hash map[preP][]int, counter preperiodicCounter) p
 	out.hAvg = float64(counter.hSum) / float64(prime)
 	out.nAvg = float64(counter.nSum) / float64(prime)
 	out.hnAvg = float64(counter.hnSum) / float64(prime)
-	out.tAvg, out.tMax, out.singletonRatio, out.nonsingletonClasses, graphs.graphs = hashScraper(hash)
+	out.tAvg, out.tMax, out.singletonRatio, out.nonsingletonClasses, graphs.graphs = hashScraper(*hash)
 	return out
 }
 
