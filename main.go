@@ -15,11 +15,9 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"os"
 	"strconv"
 	"sync"
-	//"time"
 )
 
 type preP [2]int
@@ -121,7 +119,7 @@ func main() {
 //this should occur after completing critHash writing but before critHash scoring.
 
 func computePrimeStats(prime int, nextPrimeWG *sync.WaitGroup, preperiodicChan chan<- []string) {
-	nextPrimeWG.Add(prime - 1)
+	nextPrimeWG.Add(prime)
 	critHashEntryChan := make(chan critHashEntry)
 
 	go critHashWriter(prime, nextPrimeWG, critHashEntryChan, preperiodicChan)
@@ -171,7 +169,7 @@ func critHashWriter(prime int, nextPrimeWG *sync.WaitGroup, critHashEntryChan <-
 	fmt.Println(out.prime)
 	preperiodicChan <- []string{strconv.Itoa(out.prime), strconv.FormatFloat(out.hAvg, 'f', -1, 64), strconv.Itoa(out.hMax), strconv.FormatFloat(out.nAvg, 'f', -1, 64), strconv.Itoa(out.nMax), strconv.FormatFloat(out.hnAvg, 'f', -1, 64), strconv.Itoa(out.hnMax), strconv.FormatFloat(out.tAvg, 'f', -1, 64), strconv.Itoa(out.tMax), strconv.FormatFloat(out.singletonRatio, 'f', -1, 64), strconv.Itoa(out.nonsingletonClasses)}
 
-	nextPrimeWG.Wait()
+	nextPrimeWG.Done()
 }
 
 func incrementPreperiodicCounter(counter *preperiodicCounter, entry critHashEntry) {
