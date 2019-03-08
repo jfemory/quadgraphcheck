@@ -1,10 +1,8 @@
 /*#quadgraphcheck
 Quadratic Functional Graph Isomorphism Checker
-
 The quadratic functional graph isomorphism checker takes a prime number and checks
 to see if any of the associated functional graphs are isomorphic. Uploads will be
 coming over the next few days.
-
 Place a list of primes in a folder called "list/list.prime" under the
 source directory.*/
 package main
@@ -157,7 +155,7 @@ func critHeightAndCycle(prime, constant int) (int, int) {
 //critHashWriter is run as a goroutine. It takes a channel of hashEntries, and writes them to the hash as they come in.
 //This funtion also initializes its own hash.
 func critHashWriter(prime int, nextPrimeWG *sync.WaitGroup, critHashEntryChan <-chan critHashEntry, preperiodicChan chan<- []string) {
-	hash := make(map[preP][]int)
+	hash := make(map[preP][]int, prime)
 
 	counter := preperiodicCounter{0, 0, 0, 1, 1, 1} //initialie counter after c=0 is accounted for
 	for i := 0; i < prime-1; i++ {
@@ -166,7 +164,6 @@ func critHashWriter(prime int, nextPrimeWG *sync.WaitGroup, critHashEntryChan <-
 		hash[[2]int{a.h, a.n}] = append(hash[[2]int{a.h, a.n}], a.constant)
 	}
 	out := scorecritHash(prime, hash, counter)
-	fmt.Println(out.prime)
 	preperiodicChan <- []string{strconv.Itoa(out.prime), strconv.FormatFloat(out.hAvg, 'f', -1, 64), strconv.Itoa(out.hMax), strconv.FormatFloat(out.nAvg, 'f', -1, 64), strconv.Itoa(out.nMax), strconv.FormatFloat(out.hnAvg, 'f', -1, 64), strconv.Itoa(out.hnMax), strconv.FormatFloat(out.tAvg, 'f', -1, 64), strconv.Itoa(out.tMax), strconv.FormatFloat(out.singletonRatio, 'f', -1, 64), strconv.Itoa(out.nonsingletonClasses)}
 
 	nextPrimeWG.Done()
