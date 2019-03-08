@@ -1,10 +1,8 @@
 /*#quadgraphcheck
 Quadratic Functional Graph Isomorphism Checker
-
 The quadratic functional graph isomorphism checker takes a prime number and checks
 to see if any of the associated functional graphs are isomorphic. Uploads will be
 coming over the next few days.
-
 Place a list of primes in a folder called "list/list.prime" under the
 source directory.*/
 package main
@@ -15,14 +13,9 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"strconv"
 	"sync"
-	"time"
-
-	"github.com/tj/go-spin"
 )
 
 type preP [2]int
@@ -85,10 +78,6 @@ type preperiodicOutputData struct {
 }
 
 func main() {
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
-
 	fmt.Println("starting")
 	//initialize preperiodicStatsWriter
 	filePreP, err := os.Create("output/preperiodicPortraitStats.csv")
@@ -113,27 +102,12 @@ func main() {
 	//
 	preperiodicChan := make(chan []string)
 	go writeIt(preperiodicWriter, preperiodicChan)
-	go spinIt()
 	//* Select your primes, here.
 	for {
 		var nextPrimeWG sync.WaitGroup
 		p := <-primeChan
 		go computePrimeStats(p, &nextPrimeWG, preperiodicChan)
 		nextPrimeWG.Wait()
-	}
-}
-
-func spinIt() {
-	s := spin.New()
-	for {
-		fmt.Printf("\r  \033[36mcomputing\033[m %s ", s.Next())
-		time.Sleep(100 * time.Millisecond)
-	}
-}
-
-func printIt(printChan <-chan int) {
-	for {
-		fmt.Println(<-printChan)
 	}
 }
 
@@ -189,7 +163,7 @@ func critHashWriter(prime int, nextPrimeWG *sync.WaitGroup, critHashEntryChan <-
 		incrementPreperiodicCounter(&counter, a)
 		hash[[2]int{a.h, a.n}] = append(hash[[2]int{a.h, a.n}], a.constant)
 	}
-	out := scorecritHash(prime, &hash, counter)
+	out := scorecritHash(prime, hash, counter)
 	preperiodicChan <- []string{strconv.Itoa(out.prime), strconv.FormatFloat(out.hAvg, 'f', -1, 64), strconv.Itoa(out.hMax), strconv.FormatFloat(out.nAvg, 'f', -1, 64), strconv.Itoa(out.nMax), strconv.FormatFloat(out.hnAvg, 'f', -1, 64), strconv.Itoa(out.hnMax), strconv.FormatFloat(out.tAvg, 'f', -1, 64), strconv.Itoa(out.tMax), strconv.FormatFloat(out.singletonRatio, 'f', -1, 64), strconv.Itoa(out.nonsingletonClasses)}
 
 	nextPrimeWG.Done()
@@ -217,7 +191,7 @@ func incrementPreperiodicCounter(counter *preperiodicCounter, entry critHashEntr
 	counter.hnSum = counter.hnSum + (entry.h + entry.n)
 }
 
-func scorecritHash(prime int, hash *map[preP][]int, counter preperiodicCounter) preperiodicOutputData {
+func scorecritHash(prime int, hash map[preP][]int, counter preperiodicCounter) preperiodicOutputData {
 
 	//initialize out with prime, hMax, nMax, and hnMax.
 	out := preperiodicOutputData{prime, 0, counter.hMax, 0, counter.nMax, 0, counter.hnMax, 0, 0, 0, 0}
@@ -227,7 +201,7 @@ func scorecritHash(prime int, hash *map[preP][]int, counter preperiodicCounter) 
 	out.hAvg = float64(counter.hSum) / float64(prime)
 	out.nAvg = float64(counter.nSum) / float64(prime)
 	out.hnAvg = float64(counter.hnSum) / float64(prime)
-	out.tAvg, out.tMax, out.singletonRatio, out.nonsingletonClasses, graphs.graphs = hashScraper(*hash)
+	out.tAvg, out.tMax, out.singletonRatio, out.nonsingletonClasses, graphs.graphs = hashScraper(hash)
 	return out
 }
 
