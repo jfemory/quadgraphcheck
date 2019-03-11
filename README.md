@@ -5,3 +5,4 @@ The quadratic functional graph isomorphism checker takes a prime number and chec
 
 Place a list of primes in a folder called "list/list.prime" under the source directory.
 
+Memory leak is fixed. 350K and going strong!
