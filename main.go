@@ -1,3 +1,15 @@
+//Every vertex has out degree 1
+//Every vertex has in degree at most 2
+//bound of number of cycles of given length
+//bound of number of cycles for a given
+//Find published version of tree iso paper
+
+//read tree paper, write up a brief review, present in two weeks.
+//can I do cannonical encodings on trees that aren't binary trees?
+//base d number system to encode d-trees? Think through it.
+
+//Ideas of the paper, prove the theorem. To a uninitiated audience.
+
 /*#quadgraphcheck
 Quadratic Functional Graph Isomorphism Checker
 The quadratic functional graph isomorphism checker takes a prime number and checks
@@ -17,7 +29,7 @@ import (
 
 type preP [2]int
 
-//critHashEntry is passed to the hash writer function and contains the index as a length 2 array
+//critHashEntry is passed to he hash writer function and contains the index as a length 2 array
 //and the constant to be written.
 type critHashEntry struct {
 	h        int
